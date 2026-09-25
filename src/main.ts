@@ -3,6 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { renderTileIcon } from "./icons";
 import { openSettings } from "./settings-view";
 import { findNextFocusTarget, type Direction } from "./spatial-nav";
+import { startGamepadPolling } from "./gamepad";
 import type { AppTile } from "./types";
 
 const ARROW_DIRECTIONS: Record<string, Direction> = {
@@ -13,6 +14,7 @@ const ARROW_DIRECTIONS: Record<string, Direction> = {
 };
 
 const grid = document.querySelector<HTMLElement>("#grid")!;
+const settingsPanel = document.querySelector<HTMLElement>("#settings")!;
 
 function tileMarkup(tile: AppTile): string {
   return `
@@ -90,6 +92,13 @@ export function moveFocus(direction: Direction): void {
 
 window.addEventListener("DOMContentLoaded", () => {
   void renderGrid();
+  // `document.hasFocus()` keeps this window's polling from also driving
+  // focus while an external tile window (its own separate WebviewWindow)
+  // is the one actually frontmost and receiving the controller input.
+  startGamepadPolling(
+    moveFocus,
+    () => document.hasFocus() && (!grid.hidden || !settingsPanel.hidden),
+  );
 
   window.addEventListener("keydown", (e) => {
     if (e.metaKey && e.key === "Enter") {
