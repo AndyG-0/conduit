@@ -38,36 +38,49 @@ only for now:
   `ARCHITECTURE.md` — is back on the table before more gets built on top
   of this.
 
-## 2. Settings app: manage the tile list
+## 2. Settings app: manage the tile list — done
 
-Second "app" in the launcher: add/edit/remove tiles in the registry (id,
-display name, icon, base URL, session partition) through a UI, replacing
-the hand-edited config from item 1.
+Add/edit/remove tiles in the registry (id, display name, icon, base URL,
+allowed domains) through an in-window settings view (`src/settings-view.ts`),
+backed by `list_apps`/`create_app`/`update_app`/`delete_app` commands and a
+persisted `registry.json`, replacing item 1's hardcoded single tile.
 
 ## 3. Remote control support
 
 Wire up remote input (exact remote/protocol TBD based on what's actually
 available to test against) to grid navigation and the back-to-menu
-shortcut from item 1.
+shortcut from item 1. Still blocked on hardware to test against.
 
-## 4. Keyboard support
+## 4. Keyboard support — done
 
-Full keyboard navigation of the tile grid (arrow keys/tab, enter to
-launch, the back shortcut) — should mostly exist already from item 1;
-formalize/complete it here as a first-class input method.
+Arrow-key spatial navigation (`src/spatial-nav.ts`'s `findNextFocusTarget`,
+unit tested) plus the existing Enter-to-launch and Cmd+Enter fullscreen
+toggle.
 
-## 5. Controller support
+## 5. Controller support — best-effort, untested on hardware
 
-Game-controller D-pad-style spatial navigation across the grid, same
-interactions as keyboard/remote.
+D-pad/left-stick navigation (`src/gamepad.ts`) reuses `findNextFocusTarget`
+from item 4. No physical game controller was available in the dev
+environment to test the actual `Gamepad` API wiring against; the shared
+nearest-neighbor logic has unit coverage, but the input plumbing itself
+needs a real-hardware check before relying on it.
 
-## 6. Expand the app registry, harden session isolation + navigation confinement
+## 6. Expand the app registry, harden session isolation + navigation confinement — done
 
-More than one real streaming service tile. Verify session/storage
-partitions stay isolated between services (signing into Netflix doesn't
-bleed into Hulu) and that the allowed-domain navigation confinement
-actually blocks stray redirects, now that there's more than one app to
-test it against.
+12 seeded streaming-service tiles (`default_seed()` in
+`src-tauri/src/app_config.rs`) with real base URLs and allowed-domain lists,
+plus a shared `COMMON_SSO_DOMAINS` allowlist for cross-service identity
+providers. Each tile still gets its own `data_directory()`-backed session
+partition keyed by `id`, so cookies/storage don't bleed between services.
+Domain-confinement suffix-matching and the SSO-domain carve-out have unit
+tests; multi-tile sign-in isolation hasn't been manually verified against
+real service logins (that needs real accounts, not something to automate).
+
+Real logos: sourced from `simple-icons` (CC0) and `selfhst/icons`
+(CC-BY-4.0, attributed in `NOTICE.md`) — see that file for which mark came
+from which set. ESPN and Sling TV aren't in either icon set as of
+2026-09-24; those two tiles (and any custom service added through Settings)
+fall back to a generated monogram badge.
 
 ## 7. Linux (general x86_64): DRM proof-of-concept in a VM — done
 
@@ -109,12 +122,13 @@ regression — worth a comment on Debian's Pi package bug tracker referencing
 this if anyone ever revisits Pi support. No further action planned here now
 that 7a has settled on Windows/macOS only.
 
-## 10. Per-OS autostart / kiosk integration
+## 10. Per-OS autostart / kiosk integration — macOS done, Windows deferred
 
-LaunchAgent (macOS), Startup Task/registry entry (Windows, deferred until
-Windows work starts). Document each in a platform-specific README section,
-the way HDHR Open's `apple/README.md` and `android/README.md` document their
-own platforms.
+macOS: `tauri-plugin-autostart` (LaunchAgent-based) wired in, with a
+"Launch at login" toggle in the settings view. Windows (Startup Task/registry
+entry) deferred until Windows work starts — the plugin already supports it,
+just not exercised or tested here. Platform-specific README sections still
+to be written (item 14).
 
 ## 11. Update mechanism
 
@@ -126,14 +140,22 @@ Build matrix in CI for whichever platforms are in scope, a `release.yml`
 workflow modeled on Tilora/HDHR Open's, and actual installers/bundles per
 platform (Tauri's bundler targets).
 
-## 13. Testing
+## 13. Testing — unit-level done, E2E blocked on tooling
 
-Rust unit tests for the app registry, navigation-confinement logic, and
-session-partition assignment (the parts that are ours and testable in
-isolation — the embedded third-party sites obviously aren't). Frontend
-component tests for the grid/focus-navigation logic. At least one
-end-to-end smoke test (app launches, grid renders, a tile opens its
-webview) per platform in CI if feasible.
+Rust unit tests (`src-tauri/src/app_config.rs`, `webview.rs`, run via
+`tauri::test::mock_app()`) cover the registry CRUD logic and navigation
+domain-confinement, including the SSO-allowlist and suffix-confusion cases.
+Frontend unit tests (`vitest`, `src/spatial-nav.test.ts`) cover the
+grid/focus-navigation geometry. Both run in CI (`.github/workflows/ci.yml`).
+
+**Not done, and currently not feasible:** an automated end-to-end smoke test
+(app launches, grid renders, a tile opens its webview) on macOS. Tauri's
+WebDriver harness (`tauri-driver`) only supports WebView2 (Windows) and
+WebKitGTK (Linux) — there's no WKWebView backend, so a scripted macOS E2E
+test isn't available today. Manual verification (`scripts/dev.sh`) is the
+fallback until that changes or an alternative (e.g. driving the app via
+Accessibility APIs) gets evaluated. Windows E2E via `tauri-driver` should be
+feasible once Windows work starts (item 8) and is worth revisiting then.
 
 ## 14. Documentation & first release
 
