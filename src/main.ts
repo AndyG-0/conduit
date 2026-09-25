@@ -2,7 +2,15 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { renderTileIcon } from "./icons";
 import { openSettings } from "./settings-view";
+import { findNextFocusTarget, type Direction } from "./spatial-nav";
 import type { AppTile } from "./types";
+
+const ARROW_DIRECTIONS: Record<string, Direction> = {
+  ArrowUp: "up",
+  ArrowDown: "down",
+  ArrowLeft: "left",
+  ArrowRight: "right",
+};
 
 const grid = document.querySelector<HTMLElement>("#grid")!;
 
@@ -65,6 +73,21 @@ export function focusGrid() {
   document.querySelector<HTMLButtonElement>("#grid .tile")?.focus();
 }
 
+export function moveFocus(direction: Direction): void {
+  const current = document.activeElement as HTMLElement | null;
+  const currentId = current?.dataset.tileId;
+  if (!currentId) return;
+
+  const candidates = Array.from(
+    grid.querySelectorAll<HTMLButtonElement>(".tile"),
+  ).map((el) => ({ id: el.dataset.tileId!, rect: el.getBoundingClientRect() }));
+
+  const nextId = findNextFocusTarget(candidates, currentId, direction);
+  if (!nextId) return;
+
+  grid.querySelector<HTMLButtonElement>(`[data-tile-id="${nextId}"]`)?.focus();
+}
+
 window.addEventListener("DOMContentLoaded", () => {
   void renderGrid();
 
@@ -83,6 +106,13 @@ window.addEventListener("DOMContentLoaded", () => {
     ) {
       e.preventDefault();
       (document.activeElement as HTMLButtonElement).click();
+      return;
+    }
+
+    const direction = ARROW_DIRECTIONS[e.key];
+    if (direction && document.activeElement?.classList.contains("tile")) {
+      e.preventDefault();
+      moveFocus(direction);
     }
   });
 
