@@ -1,0 +1,26 @@
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
+IDEAS.md
+.DS_Store
+
+# Rust / Tauri
+/src-tauri/target/
+/src-tauri/gen/schemas/
+# Cargo.lock is committed (this builds an application, not a library)
+
+# Frontend (Node)
+node_modules/
+dist/
+build/
+.vite/
+
+# Editor
+.vscode/*
+!.vscode/extensions.json
+
+# Spike / scratch work (see TODO.md item 1)
+/spikes/**/target/
+/spikes/**/node_modules/
+/spikes/**/dist/
+
+*.log

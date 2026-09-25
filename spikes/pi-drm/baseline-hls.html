@@ -1,0 +1,43 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Conduit Pi baseline HLS decode</title>
+<style>
+  html, body { margin: 0; background: #000; height: 100%; overflow: hidden; }
+  video { width: 100vw; height: 100vh; object-fit: contain; }
+  #hud {
+    position: fixed; top: 0; left: 0; color: #0f0; background: rgba(0,0,0,0.6);
+    font: 14px/1.4 monospace; padding: 0.5rem; white-space: pre;
+  }
+</style>
+</head>
+<body>
+<video id="v" src="bbb1080.mp4"
+       autoplay loop muted playsinline></video>
+<div id="hud"></div>
+<script>
+const v = document.getElementById('v');
+const hud = document.getElementById('hud');
+function update() {
+  hud.textContent =
+    `videoWidth x videoHeight: ${v.videoWidth}x${v.videoHeight}\n` +
+    `readyState: ${v.readyState}\n` +
+    `currentTime: ${v.currentTime.toFixed(1)}s\n` +
+    `paused: ${v.paused}  error: ${v.error ? v.error.message : 'none'}`;
+  if (v.getVideoPlaybackQuality) {
+    const q = v.getVideoPlaybackQuality();
+    hud.textContent += `\ntotalVideoFrames: ${q.totalVideoFrames}  droppedVideoFrames: ${q.droppedVideoFrames}`;
+  }
+}
+setInterval(update, 1000);
+v.addEventListener('error', () => console.error('video error', v.error));
+for (const ev of ['loadstart','progress','suspend','abort','emptied','stalled',
+                   'loadedmetadata','loadeddata','canplay','canplaythrough',
+                   'playing','waiting','seeking','seeked']) {
+  v.addEventListener(ev, () => console.log('EVENT ' + ev + ' readyState=' + v.readyState + ' networkState=' + v.networkState));
+}
+v.play().catch(err => console.error('play() rejected', err));
+</script>
+</body>
+</html>

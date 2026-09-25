@@ -1,0 +1,104 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Conduit Pi DRM probe</title>
+<style>
+  body { background: #111; color: #eee; font: 16px/1.5 monospace; padding: 2rem; }
+  .pass { color: #6f6; }
+  .fail { color: #f66; }
+  .pending { color: #ff6; }
+  pre { background: #000; padding: 1rem; overflow: auto; }
+</style>
+</head>
+<body>
+<h1>Conduit Pi DRM probe</h1>
+<p>User agent: <span id="ua"></span></p>
+<table id="results"></table>
+<h2>Raw log</h2>
+<pre id="log"></pre>
+<script>
+const resultsEl = document.getElementById('results');
+const logEl = document.getElementById('log');
+document.getElementById('ua').textContent = navigator.userAgent;
+
+function log(msg) {
+  console.log(msg);
+  logEl.textContent += msg + '\n';
+}
+
+function row(label, statusPromise) {
+  const tr = document.createElement('tr');
+  const tdLabel = document.createElement('td');
+  tdLabel.textContent = label;
+  tdLabel.style.paddingRight = '2rem';
+  const tdStatus = document.createElement('td');
+  tdStatus.textContent = 'checking...';
+  tdStatus.className = 'pending';
+  tr.appendChild(tdLabel);
+  tr.appendChild(tdStatus);
+  resultsEl.appendChild(tr);
+
+  Promise.resolve(statusPromise).then(pass => {
+    tdStatus.textContent = pass ? 'SUPPORTED' : 'not supported';
+    tdStatus.className = pass ? 'pass' : 'fail';
+    log(`${label}: ${pass ? 'SUPPORTED' : 'not supported'}`);
+  }).catch(err => {
+    tdStatus.textContent = 'not supported (' + err.name + ')';
+    tdStatus.className = 'fail';
+    log(`${label}: not supported (${err.name}: ${err.message})`);
+  });
+}
+
+function checkKeySystem(keySystem) {
+  if (!navigator.requestMediaKeySystemAccess) {
+    return Promise.reject(new Error('requestMediaKeySystemAccess unavailable'));
+  }
+  const config = [{
+    initDataTypes: ['cenc', 'keyids'],
+    videoCapabilities: [
+      { contentType: 'video/mp4;codecs="avc1.42E01E"' },
+      { contentType: 'video/mp4;codecs="hev1.1.6.L93.B0"' },
+    ],
+    audioCapabilities: [
+      { contentType: 'audio/mp4;codecs="mp4a.40.2"' },
+    ],
+  }];
+  return navigator.requestMediaKeySystemAccess(keySystem, config).then(() => true);
+}
+
+log('EME (navigator.requestMediaKeySystemAccess present): ' + !!navigator.requestMediaKeySystemAccess);
+
+const checks = [];
+function trackedRow(label, statusPromise) {
+  const settled = statusPromise.then(v => true).catch(() => false);
+  checks.push(settled.then(pass => [label, pass]));
+  row(label, statusPromise);
+}
+
+trackedRow('Widevine', checkKeySystem('com.widevine.alpha'));
+trackedRow('ClearKey', checkKeySystem('org.w3.clearkey'));
+trackedRow('PlayReady', checkKeySystem('com.microsoft.playready'));
+
+const mse = window.MediaSource || window.WebKitMediaSource;
+log('MSE (MediaSource present): ' + !!mse);
+if (mse) {
+  const codecs = {
+    'H264': 'video/mp4; codecs="avc1.42E01E"',
+    'HEVC': 'video/mp4; codecs="hev1.1.6.L93.B0"',
+    'VP9': 'video/webm; codecs="vp09.00.10.08"',
+    'AV1': 'video/mp4; codecs="av01.0.04M.08"',
+  };
+  for (const [label, type] of Object.entries(codecs)) {
+    trackedRow('MSE:' + label, Promise.resolve(mse.isTypeSupported(type)));
+  }
+}
+
+Promise.all(checks).then(results => {
+  const summary = results.map(([l, p]) => `${l}=${p ? 'Y' : 'N'}`).join(' ');
+  document.title = 'RESULT: EME=' + !!navigator.requestMediaKeySystemAccess + ' ' + summary;
+  log('SUMMARY TITLE: ' + document.title);
+});
+</script>
+</body>
+</html>
