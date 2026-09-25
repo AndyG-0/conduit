@@ -32,5 +32,13 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/REPLACE_ME/conduit/releases/latest/download/latest.json"
+      ],
+      "pubkey": "REPLACE_ME_WITH_REAL_PUBKEY_FROM_pnpm_tauri_signer_generate"
+    }
   }
 }

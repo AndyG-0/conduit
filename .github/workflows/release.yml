@@ -1,0 +1,49 @@
+name: Release (macOS build artifacts)
+
+# Builds an unsigned macOS .app/.dmg on a `v*` tag and uploads it as a
+# workflow artifact for manual download/testing. This deliberately does NOT
+# publish a GitHub Release — cutting a real release is a separate, explicit
+# decision (see TODO.md item 14). It's also unsigned/non-notarized: real
+# notarization needs an Apple Developer ID this project doesn't have yet.
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build (unsigned)
+        run: pnpm tauri build
+        env:
+          # Empty signing identity = ad-hoc signing, not a real Developer ID.
+          APPLE_SIGNING_IDENTITY: "-"
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: conduit-macos-${{ github.ref_name }}
+          path: |
+            src-tauri/target/release/bundle/macos/*.app
+            src-tauri/target/release/bundle/dmg/*.dmg
+          if-no-files-found: error

@@ -130,15 +130,40 @@ entry) deferred until Windows work starts — the plugin already supports it,
 just not exercised or tested here. Platform-specific README sections still
 to be written (item 14).
 
-## 11. Update mechanism
+## 11. Update mechanism — scaffold only, not functional
 
-Wire up Tauri's built-in updater against signed GitHub Releases.
+`tauri-plugin-updater` is added and registered in `src-tauri/src/lib.rs`, and
+`src-tauri/tauri.conf.json` has a `plugins.updater` block. Both the
+`endpoints` URL and the `pubkey` in that block are **placeholders**
+(`REPLACE_ME_*`) — no signing key was generated, since fabricating one would
+be worse than leaving this undone. The app starts and runs fine with these
+placeholders (confirmed via `cargo check`/`cargo test`); the plugin only
+reads/validates them when an update check is actually triggered, and no
+frontend "check for updates" affordance is wired up, so nothing currently
+calls it.
 
-## 12. Packaging & release CI
+**Manual steps left to make this real:**
+1. `pnpm tauri signer generate` to create a real keypair.
+2. Put the generated public key in `tauri.conf.json`'s `plugins.updater.pubkey`,
+   replacing the placeholder.
+3. Store the private key and its password as GitHub Actions secrets
+   (`TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`).
+4. Point `endpoints` at the real repo once one exists (currently a
+   `REPLACE_ME` GitHub Releases URL pattern).
+5. Set `bundle.createUpdaterArtifacts: true` in `tauri.conf.json` and pass
+   the secrets as env vars in `release.yml`'s build step — left off for now
+   since it would fail the build without a real key.
+6. Add a capability entry (`updater:default`) and a frontend "check for
+   updates" UI once the above is real.
 
-Build matrix in CI for whichever platforms are in scope, a `release.yml`
-workflow modeled on Tilora/HDHR Open's, and actual installers/bundles per
-platform (Tauri's bundler targets).
+## 12. Packaging & release CI — macOS slice done
+
+`.github/workflows/release.yml`: triggered on `v*` tags, builds an
+unsigned/ad-hoc-signed macOS `.app`/`.dmg` via `pnpm tauri build` and
+uploads them as workflow artifacts. Deliberately does **not** publish a
+GitHub Release — that's a separate, explicit decision (item 14). Real
+notarization needs an Apple Developer ID this project doesn't have.
+Windows build matrix entry still to come once Windows work starts (item 8).
 
 ## 13. Testing — unit-level done, E2E blocked on tooling
 

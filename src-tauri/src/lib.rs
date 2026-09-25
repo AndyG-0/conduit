@@ -17,6 +17,10 @@ pub fn run() {
             MacosLauncher::LaunchAgent,
             None,
         ))
+        // Scaffold only: `pubkey`/`endpoints` in tauri.conf.json are
+        // placeholders, so `check()` will fail against them today. See
+        // TODO.md item 11 for the manual steps left to make this real.
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             window::toggle_fullscreen,
             webview::launch_app,
