@@ -3,6 +3,9 @@ mod shortcuts;
 mod webview;
 mod window;
 
+use std::sync::Mutex;
+
+use app_config::Registry;
 use tauri::{Manager, WindowEvent};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -13,8 +16,15 @@ pub fn run() {
             window::toggle_fullscreen,
             webview::launch_app,
             webview::return_to_grid,
+            app_config::list_apps,
+            app_config::create_app,
+            app_config::update_app,
+            app_config::delete_app,
         ])
         .setup(|app| {
+            let registry = Registry::load(&app.handle().clone())?;
+            app.manage(Mutex::new(registry));
+
             let main_window = app
                 .get_webview_window("main")
                 .expect("main window must exist");

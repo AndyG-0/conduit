@@ -1,18 +1,72 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { renderTileIcon } from "./icons";
+import { openSettings } from "./settings-view";
+import type { AppTile } from "./types";
 
-function focusGrid() {
-  document.querySelector<HTMLButtonElement>(".tile")?.focus();
+const grid = document.querySelector<HTMLElement>("#grid")!;
+
+function tileMarkup(tile: AppTile): string {
+  return `
+    <span class="tile-icon">${renderTileIcon(tile.icon_slug, tile.name)}</span>
+    <span class="tile-name">${escapeHtml(tile.name)}</span>
+  `;
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(
+    /[&<>"']/g,
+    (c) =>
+      ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;",
+      })[c]!,
+  );
+}
+
+export async function renderGrid(): Promise<void> {
+  const tiles = await invoke<AppTile[]>("list_apps");
+  grid.innerHTML = "";
+
+  for (const tile of tiles) {
+    const button = document.createElement("button");
+    button.className = "tile";
+    button.dataset.tileId = tile.id;
+    button.innerHTML = tileMarkup(tile);
+    button.addEventListener("click", () => {
+      void invoke("launch_app", { id: tile.id });
+    });
+    grid.appendChild(button);
+  }
+
+  const settingsButton = document.createElement("button");
+  settingsButton.className = "tile tile-settings";
+  settingsButton.dataset.tileId = "__settings__";
+  settingsButton.innerHTML = `
+    <span class="tile-icon">${gearIcon()}</span>
+    <span class="tile-name">Settings</span>
+  `;
+  settingsButton.addEventListener("click", () => {
+    openSettings();
+  });
+  grid.appendChild(settingsButton);
+
+  focusGrid();
+}
+
+function gearIcon(): string {
+  return `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="#1c1c1f" stroke-width="1.8"><circle cx="12" cy="12" r="3.2"/><path d="M12 3.5v2M12 18.5v2M20.5 12h-2M5.5 12h-2M17.7 6.3l-1.4 1.4M7.7 16.3l-1.4 1.4M17.7 17.7l-1.4-1.4M7.7 7.7 6.3 6.3" stroke-linecap="round"/></svg>`;
+}
+
+export function focusGrid() {
+  document.querySelector<HTMLButtonElement>("#grid .tile")?.focus();
 }
 
 window.addEventListener("DOMContentLoaded", () => {
-  focusGrid();
-
-  document.querySelectorAll<HTMLButtonElement>(".tile").forEach((tile) => {
-    tile.addEventListener("click", () => {
-      void invoke("launch_app");
-    });
-  });
+  void renderGrid();
 
   window.addEventListener("keydown", (e) => {
     if (e.metaKey && e.key === "Enter") {
