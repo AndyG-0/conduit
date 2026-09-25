@@ -103,6 +103,20 @@ body {
   margin: 0;
 }
 
+.settings-autostart {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+  font-size: 1rem;
+}
+
+.settings-autostart-error {
+  color: #ff6b6b;
+  margin-top: -1rem;
+  margin-bottom: 1.5rem;
+}
+
 .settings-list {
   list-style: none;
   margin: 0 0 2rem;

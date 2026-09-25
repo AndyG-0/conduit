@@ -1,4 +1,9 @@
 import { invoke } from "@tauri-apps/api/core";
+import {
+  disable as disableAutostart,
+  enable as enableAutostart,
+  isEnabled as isAutostartEnabled,
+} from "@tauri-apps/plugin-autostart";
 import { renderTileIcon, KNOWN_ICON_SLUGS } from "./icons";
 import { renderGrid, focusGrid } from "./main";
 import type { AppTile, AppTileInput } from "./types";
@@ -77,7 +82,10 @@ function formMarkup(tile?: AppTile): string {
 }
 
 async function renderSettings(editingId: string | null = null): Promise<void> {
-  const tiles = await invoke<AppTile[]>("list_apps");
+  const [tiles, autostartEnabled] = await Promise.all([
+    invoke<AppTile[]>("list_apps"),
+    isAutostartEnabled(),
+  ]);
   const editing = editingId ? tiles.find((t) => t.id === editingId) : undefined;
 
   panel.innerHTML = `
@@ -85,6 +93,11 @@ async function renderSettings(editingId: string | null = null): Promise<void> {
       <h1>Settings</h1>
       <button type="button" id="settings-close">Back</button>
     </div>
+    <label class="settings-autostart">
+      <input type="checkbox" id="autostart-toggle" ${autostartEnabled ? "checked" : ""} />
+      Launch at login
+    </label>
+    <p class="settings-autostart-error" id="autostart-error" hidden></p>
     <ul class="settings-list">${tiles.map(tileRow).join("")}</ul>
     ${formMarkup(editing)}
   `;
@@ -93,6 +106,28 @@ async function renderSettings(editingId: string | null = null): Promise<void> {
     .querySelector<HTMLButtonElement>("#settings-close")!
     .addEventListener("click", () => {
       closeSettings();
+    });
+
+  const autostartError = panel.querySelector<HTMLElement>("#autostart-error")!;
+  panel
+    .querySelector<HTMLInputElement>("#autostart-toggle")!
+    .addEventListener("change", (e) => {
+      void (async () => {
+        const checkbox = e.target as HTMLInputElement;
+        const checked = checkbox.checked;
+        autostartError.hidden = true;
+        try {
+          if (checked) {
+            await enableAutostart();
+          } else {
+            await disableAutostart();
+          }
+        } catch (err) {
+          checkbox.checked = !checked;
+          autostartError.textContent = `Couldn't change launch-at-login setting: ${String(err)}`;
+          autostartError.hidden = false;
+        }
+      })();
     });
 
   panel.querySelectorAll<HTMLButtonElement>(".settings-edit").forEach((btn) => {
