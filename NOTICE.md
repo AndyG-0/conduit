@@ -19,3 +19,11 @@ owner.
 ESPN and Sling TV aren't present in either icon set as of 2026-09-24; those
 tiles fall back to a generated monogram badge (see `src/icons.ts`) until a
 legitimately-licensed mark is found.
+
+## Trending tile banner (TMDB)
+
+When a user supplies their own free API key (Settings), the tile hero
+banner's trending titles and backdrop artwork are fetched from
+[The Movie Database (TMDB)](https://www.themoviedb.org/) — see
+`src-tauri/src/trending.rs`. This product uses the TMDB API but is not
+endorsed or certified by TMDB.

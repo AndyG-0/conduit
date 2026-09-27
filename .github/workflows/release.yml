@@ -1,10 +1,9 @@
-name: Release (macOS build artifacts)
+name: Release
 
-# Builds an unsigned macOS .app/.dmg on a `v*` tag and uploads it as a
-# workflow artifact for manual download/testing. This deliberately does NOT
-# publish a GitHub Release — cutting a real release is a separate, explicit
-# decision (see TODO.md item 14). It's also unsigned/non-notarized: real
-# notarization needs an Apple Developer ID this project doesn't have yet.
+# Builds a macOS .app/.dmg on a `v*` tag and publishes it as a GitHub
+# Release. The build is ad-hoc signed, not notarized — real notarization
+# needs a paid Apple Developer ID this project doesn't have yet, so the
+# release body warns about Gatekeeper's first-launch block.
 
 on:
   push:
@@ -14,6 +13,8 @@ on:
 jobs:
   build-macos:
     runs-on: macos-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -39,11 +40,39 @@ jobs:
           # Empty signing identity = ad-hoc signing, not a real Developer ID.
           APPLE_SIGNING_IDENTITY: "-"
 
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
+      - name: Zip .app bundle
+        run: |
+          cd src-tauri/target/release/bundle/macos
+          ditto -c -k --sequesterRsrc --keepParent *.app \
+            "Conduit-${{ github.ref_name }}-macos.app.zip"
+
+      - name: Extract changelog section for this version
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          awk -v ver="$version" '
+            /^## \[/ { if (found) exit; if ($0 ~ "\\[" ver "\\]") { found=1; next } }
+            found { print }
+          ' CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            echo "_No changelog entry found for $version._" > release-notes.md
+          fi
+
+      - name: Build release body
+        run: |
+          {
+            echo "**This build is unsigned / ad-hoc-signed.** macOS Gatekeeper"
+            echo "will block it on first launch. Right-click (Control-click) the"
+            echo "app and choose **Open**, then confirm, to run it the first time."
+            echo
+            cat release-notes.md
+          } > full-release-notes.md
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
-          name: conduit-macos-${{ github.ref_name }}
-          path: |
-            src-tauri/target/release/bundle/macos/*.app
+          name: "Conduit ${{ github.ref_name }}"
+          body_path: full-release-notes.md
+          fail_on_unmatched_files: true
+          files: |
+            src-tauri/target/release/bundle/macos/*.app.zip
             src-tauri/target/release/bundle/dmg/*.dmg
-          if-no-files-found: error

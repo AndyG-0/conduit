@@ -4,7 +4,8 @@ Status: **scope is now Windows and macOS only.** Both Pi and general Linux
 desktop support were dropped after their DRM spikes (below) surfaced real
 architectural costs — see "Linux desktop: architecture decision needed
 (resolved)" under Open risks for the reasoning. Active development is a
-macOS build-out on top of the item-1 prototype; see [`TODO.md`](TODO.md).
+macOS build-out on top of this project's initial prototype; see
+[`TODO.md`](TODO.md) for what's still open.
 
 The two Linux-family spikes that led to that call, kept for the record:
 
@@ -208,14 +209,16 @@ at the top of this section.
 Lower risk given native DRM support, but Netflix-tier 1080p/4K playback
 inside a WebView2/WKWebView-hosted native embedded webview has its own
 quirks (EME permission prompts, fullscreen-video handoff). The macOS half
-of this is what the item 1 prototype in `TODO.md` is actually testing;
-Windows is deferred until after that.
+of this is what this project's initial prototype already confirmed
+(Netflix DRM playback via Tauri/WKWebView, see the stack decision above);
+Windows verification is deferred until Windows work starts (see
+`TODO.md`).
 
 ## Alternatives considered
 
 The primary path (Tauri, one native embedded webview per app, no iframes)
-is what's being prototyped now (`TODO.md` item 1) and still stands for
-Windows/macOS. For Linux specifically, the general-x86_64 DRM spike above
+is what this project's macOS build-out has already confirmed and still
+stands for Windows/macOS. For Linux specifically, the general-x86_64 DRM spike above
 has already turned "revisit if the primary path hits a wall" into a live,
 three-way decision (see "Linux desktop: architecture decision needed"
 above) — the alternatives below are no longer purely hypothetical for that
@@ -261,7 +264,7 @@ depending on cooperation from each target site individually — but it also
 carries the most open technical risk (Open risks above), so these are the
 fallback set if that risk doesn't resolve cleanly on a given platform.
 
-## Component breakdown (target shape, not yet built)
+## Component breakdown
 
 ```
 src-tauri/     Rust core: window/lifecycle management, app registry, webview
@@ -285,10 +288,10 @@ spikes/        Throwaway feasibility code (DRM/hardware-decode spike, etc.)
   auth/SSO redirect hosts) — blocks stray redirects (ads, phishing) from
   escaping the sandboxed view.
 - Manages window lifecycle: both a normal windowed mode and a fullscreen
-  "big-picture" mode (Steam Big Picture-style toggle) are first-class from
-  the start, not a fullscreen-kiosk-only design with windowed as a debug
-  fallback — windowed mode matters most early (fastest to develop/test
-  against), big-picture mode is the actual target 10-foot experience.
+  mode (a Steam Big Picture-style toggle) are first-class from the start,
+  not a fullscreen-kiosk-only design with windowed as a debug fallback —
+  windowed mode matters most early (fastest to develop/test against),
+  fullscreen is the actual target 10-foot experience.
 
 ### Launcher UI (`src/`)
 

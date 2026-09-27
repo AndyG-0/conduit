@@ -95,8 +95,9 @@ demonstrably fine on their own.
 
 ## Why Phase 4 (real Tauri scaffold) was skipped
 
-TODO.md item 1 asks to confirm with "a Tauri (WebKitGTK) app" specifically.
-Given Phase 1 and Phase 2 already isolated both failures to the
+Confirming DRM playback inside an actual Tauri (WebKitGTK) app — not just a
+bare WebKit harness — was the original open question this phase would have
+answered. Given Phase 1 and Phase 2 already isolated both failures to the
 `webkit2gtk-4.1` library itself — the identical library Tauri links against,
 tested via a harness that mirrors Tauri's own webview creation path — a
 bare Tauri scaffold's `<video>` element would very likely hit the exact

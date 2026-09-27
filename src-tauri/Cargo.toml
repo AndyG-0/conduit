@@ -18,13 +18,25 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
+tauri = { version = "2", features = ["unstable"] }
 tauri-plugin-global-shortcut = "2"
 url = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tauri-plugin-autostart = "2.5.1"
 tauri-plugin-updater = "2.12.0"
+reqwest = { version = "0.13", default-features = false, features = ["json", "rustls", "query"] }
+base64 = "0.22"
+regex = "1"
+# Default "v1" feature pulls in the right native backend per target OS
+# (macOS Keychain, Windows Credential Manager) — see `src-tauri/src/secrets.rs`.
+keyring = "4"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+# Already in the dependency tree transitively via tao/wry — pinned here
+# directly just to suppress AppKit's automatic "Enter Full Screen" menu
+# item (see `menu.rs`), not for any other Cocoa interop.
+objc2-foundation = "0.3"
 
 [dev-dependencies]
 tauri = { version = "2", features = ["test"] }

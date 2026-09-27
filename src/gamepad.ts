@@ -21,13 +21,17 @@ const STANDARD_BUTTON = {
 
 const STICK_DEADZONE = 0.5;
 const REPEAT_DELAY_MS = 220;
+const HOLD_TO_EDIT_MS = 550;
 
 type MoveFocusFn = (direction: Direction) => void;
 type GridFocused = () => boolean;
+type ConfirmHeldFn = () => void;
 
 let rafHandle: number | null = null;
 let lastMoveAt = 0;
 let lastConfirmPressed = false;
+let confirmPressedSince: number | null = null;
+let confirmHoldFired = false;
 
 function stickDirection(x: number, y: number): Direction | null {
   if (Math.abs(x) < STICK_DEADZONE && Math.abs(y) < STICK_DEADZONE) return null;
@@ -37,7 +41,11 @@ function stickDirection(x: number, y: number): Direction | null {
   return y > 0 ? "down" : "up";
 }
 
-function poll(moveFocus: MoveFocusFn, isGridFocused: GridFocused) {
+function poll(
+  moveFocus: MoveFocusFn,
+  isGridFocused: GridFocused,
+  onConfirmHeld?: ConfirmHeldFn,
+) {
   const pads = navigator.getGamepads();
   const pad = pads.find((p) => p !== null);
 
@@ -59,24 +67,49 @@ function poll(moveFocus: MoveFocusFn, isGridFocused: GridFocused) {
       lastMoveAt = now;
     }
 
+    // Edge- *and* duration-tracked rather than a plain "click on press": a
+    // press has to clear the hold threshold to fire `onConfirmHeld` (entering
+    // edit mode), and only a press that *doesn't* clear it still clicks —
+    // on release, not on press, since we don't know which one it'll be until
+    // either the hold fires or the button comes back up.
     const confirmPressed =
       pad.buttons[STANDARD_BUTTON.CONFIRM]?.pressed ?? false;
     if (confirmPressed && !lastConfirmPressed) {
-      (document.activeElement as HTMLElement | null)?.click();
+      confirmPressedSince = now;
+      confirmHoldFired = false;
+    } else if (
+      confirmPressed &&
+      confirmPressedSince !== null &&
+      !confirmHoldFired &&
+      now - confirmPressedSince >= HOLD_TO_EDIT_MS
+    ) {
+      confirmHoldFired = true;
+      onConfirmHeld?.();
+    } else if (!confirmPressed && lastConfirmPressed) {
+      if (!confirmHoldFired) {
+        (document.activeElement as HTMLElement | null)?.click();
+      }
+      confirmPressedSince = null;
+      confirmHoldFired = false;
     }
     lastConfirmPressed = confirmPressed;
   }
 
-  rafHandle = requestAnimationFrame(() => poll(moveFocus, isGridFocused));
+  rafHandle = requestAnimationFrame(() =>
+    poll(moveFocus, isGridFocused, onConfirmHeld),
+  );
 }
 
 /** Starts polling for gamepad input. Call once at app startup. */
 export function startGamepadPolling(
   moveFocus: MoveFocusFn,
   isGridFocused: GridFocused,
+  onConfirmHeld?: ConfirmHeldFn,
 ): void {
   if (rafHandle !== null) return;
-  rafHandle = requestAnimationFrame(() => poll(moveFocus, isGridFocused));
+  rafHandle = requestAnimationFrame(() =>
+    poll(moveFocus, isGridFocused, onConfirmHeld),
+  );
 }
 
 export function stopGamepadPolling(): void {
@@ -84,4 +117,17 @@ export function stopGamepadPolling(): void {
     cancelAnimationFrame(rafHandle);
     rafHandle = null;
   }
+}
+
+/** Whether any connected gamepad currently has a button pressed or a stick
+ * pushed past the deadzone. Used by the screensaver's idle timer to treat
+ * gamepad input as dismiss/activity even while it's showing (when the grid
+ * itself is hidden, so the `moveFocus`-driven poll loop above is gated off). */
+export function isGamepadActive(): boolean {
+  const pads = navigator.getGamepads();
+  const pad = pads.find((p) => p !== null);
+  if (!pad) return false;
+
+  if (pad.buttons.some((b) => b.pressed)) return true;
+  return stickDirection(pad.axes[0] ?? 0, pad.axes[1] ?? 0) !== null;
 }

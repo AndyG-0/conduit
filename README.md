@@ -34,48 +34,70 @@ see [`ARCHITECTURE.md`](ARCHITECTURE.md) for why.
 - **App grid**: 12 seeded streaming-service tiles (Netflix, Hulu, Disney+,
   Paramount+, Peacock, Tubi, ESPN, YouTube TV, Sling TV, HBO Max, Prime
   Video, Apple TV+) with real brand logos where a legitimately-licensed mark
-  is available (see [`NOTICE.md`](NOTICE.md)); anything without one falls
-  back to a generated monogram badge.
+  is available (see [`NOTICE.md`](NOTICE.md)); tiles without one fall back to
+  that site's own favicon, then a generated monogram badge if the favicon
+  fails to load.
 - **Settings** (in-window, gear tile on the grid): add, edit, and remove
-  tiles — name, base URL, allowed domains, icon.
+  tiles — name, base URL, an optional list of additional allowed domains,
+  and an optional icon override that forces one of the vendored brand logos
+  instead of the favicon.
 - **Session isolation**: each tile gets its own persisted storage partition
   (`src-tauri/src/app_config.rs`), so logins/cookies don't leak between
-  services. Navigation is confined to each tile's own allowed domains plus a
-  shared SSO allowlist (`src-tauri/src/webview.rs`).
+  services. Navigation is confined to each tile's own domain (derived
+  automatically from its base URL) plus a shared SSO allowlist and any
+  additional domains configured for that tile (`src-tauri/src/webview.rs`).
 - **Navigation**: arrow-key spatial focus movement, Enter to launch,
   Cmd+Enter to toggle fullscreen, and a global shortcut back to the grid
   from inside a tile. Gamepad D-pad/left-stick navigation reuses the same
   logic (`src/spatial-nav.ts`) but is untested on real hardware.
+- **Window chrome**: a tile plays embedded in the same window as the grid,
+  in both windowed and fullscreen mode — there's a single titlebar, always
+  present and draggable in windowed mode, not a separate window per tile.
+  A global shortcut and a "Refresh" menu-bar item reload a stuck tile.
+  Picture-in-picture (`Cmd+Shift+P`, or View > Picture in Picture) pops the
+  active tile out into a small always-on-top corner window that floats
+  over other apps, independent of Conduit's own window.
+- **Help** (in-window, `?` tile on the grid): a keyboard-shortcuts reference
+  and a short overview of how tiles and icons work.
 - **macOS launch at login** via `tauri-plugin-autostart`, toggled from
   Settings.
 
-## Development
+## Keyboard shortcuts
 
-Prereqs: [pnpm](https://pnpm.io), a stable Rust toolchain, and Tauri's
-[platform prerequisites](https://v2.tauri.app/start/prerequisites/) for
-macOS.
+| Shortcut            | Action                                        |
+| -------------------- | ---------------------------------------------- |
+| Arrow keys           | Move focus around the grid                     |
+| Enter                | Launch the focused tile                        |
+| Cmd+Enter            | Toggle full screen                             |
+| Cmd+Shift+Escape     | Return to the grid from a tile                 |
+| Cmd+Shift+R          | Refresh the active tile                        |
+| Cmd+Shift+P          | Toggle picture-in-picture for the active tile  |
+| Cmd+[                | Go back in the active tile's history           |
+| Cmd+]                | Go forward in the active tile's history        |
+| Cmd+Shift+H          | Return to the tile grid (View > Home)          |
+| ?                    | Open the Help panel                            |
+| Escape               | Close a panel (Settings or Help)               |
+
+## Development
 
 ```sh
 pnpm install
 pnpm dev:app       # runs the Tauri dev server (window + hot reload)
 ```
 
-Useful scripts:
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for prerequisites, the full check
+suite, and code conventions.
 
-```sh
-pnpm lint          # eslint
-pnpm typecheck     # tsc --noEmit
-pnpm format        # prettier --write
-pnpm test          # vitest (frontend unit tests)
-pnpm build         # production frontend build
+## Releasing
 
-cargo fmt --manifest-path src-tauri/Cargo.toml
-cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --all-features
-cargo test --manifest-path src-tauri/Cargo.toml
-```
-
-All of the above run in CI on every push (`.github/workflows/ci.yml`). See
-[`CONTRIBUTING.md`](CONTRIBUTING.md) for more detail.
+Tagged releases are built and published automatically
+(`.github/workflows/release.yml`): a `v*` tag push builds an ad-hoc-signed
+macOS `.app`/`.dmg` and publishes them as a GitHub Release, with the
+matching [`CHANGELOG.md`](CHANGELOG.md) section as the release notes.
+Releases are ad-hoc signed, not notarized (no Apple Developer ID yet), so
+macOS Gatekeeper blocks the app on first launch — the release notes explain
+the right-click → **Open** workaround. See [`CONTRIBUTING.md`](CONTRIBUTING.md)
+for how a release is cut.
 
 ## Repository layout
 

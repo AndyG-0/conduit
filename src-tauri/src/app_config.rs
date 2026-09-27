@@ -4,20 +4,60 @@ use std::sync::Mutex;
 use serde::{Deserialize, Serialize};
 use tauri::{command, AppHandle, Manager, Runtime, State};
 
+use crate::jellyfin::jellyfin_keychain_account;
+use crate::secrets;
+
 /// A single "app" tile in the launcher grid. `id` doubles as the webview
 /// window label and the session-partition/data-directory name, so it must
 /// be unique and stable once other state (partition data, an open window)
 /// might reference it.
+///
+/// Deliberately holds no secrets: a per-tile Jellyfin API key is never part
+/// of this struct or `registry.json` — it lives in the OS keychain instead
+/// (`secrets.rs`), keyed by tile id. `AppTileView` is what the frontend
+/// actually sees, with a computed `jellyfin_api_key_set` flag standing in
+/// for the key itself.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct AppTile {
     pub id: String,
     pub name: String,
     pub base_url: String,
+    /// Extra domains a tile's webview may navigate to, beyond its own
+    /// `base_url` host and the shared SSO allowlist — see
+    /// `AppTileInput::allowed_domains`.
+    #[serde(default)]
     pub allowed_domains: Vec<String>,
     /// A `simple-icons` slug the frontend knows how to render (see
     /// `src/icons.ts`). `None` falls back to a generated monogram tile.
     #[serde(default)]
     pub icon_slug: Option<String>,
+}
+
+/// What the frontend actually receives from `list_apps`/`create_app`/
+/// `update_app`. `jellyfin_api_key_set` tells the settings UI whether to
+/// show "key saved" vs. a blank field, without ever round-tripping the key
+/// itself back out to the webview.
+#[derive(Debug, Clone, Serialize)]
+pub struct AppTileView {
+    pub id: String,
+    pub name: String,
+    pub base_url: String,
+    pub allowed_domains: Vec<String>,
+    pub icon_slug: Option<String>,
+    pub jellyfin_api_key_set: bool,
+}
+
+impl AppTile {
+    pub fn view(&self) -> AppTileView {
+        AppTileView {
+            id: self.id.clone(),
+            name: self.name.clone(),
+            base_url: self.base_url.clone(),
+            allowed_domains: self.allowed_domains.clone(),
+            icon_slug: self.icon_slug.clone(),
+            jellyfin_api_key_set: secrets::has_secret(&jellyfin_keychain_account(&self.id)),
+        }
+    }
 }
 
 /// Lowercases and replaces anything that isn't `[a-z0-9-]` with `-`,
@@ -127,7 +167,25 @@ pub fn default_seed() -> Vec<AppTile> {
             "hbomax",
             "HBO Max",
             "https://www.hbomax.com/",
-            &["hbomax.com", "max.com", "warnerbros.com"],
+            // `warnermediacdn.com` is WarnerMedia's own CDN, not a
+            // third-party ad domain — HBO Max's login flow hits
+            // `lightning.warnermediacdn.com/cdp/psmtk/getcdpid.html` for a
+            // device-id/anti-fraud check, and without it allowed the
+            // request was silently blocked like the unrelated ad/tracking
+            // pixels alongside it. Same failure shape as the missing
+            // reCAPTCHA host that broke Hulu's login (see
+            // `COMMON_CAPTCHA_DOMAINS` in webview.rs). `hbogo.com` is the
+            // legacy HBO GO/HBO NOW domain WarnerMedia's identity provider
+            // still runs on — the actual sign-in form posts to
+            // `auth.hbogo.com` via a SAML redirect, which was being blocked
+            // identically to the ad/tracking hosts in the same login flow.
+            &[
+                "hbomax.com",
+                "max.com",
+                "warnerbros.com",
+                "warnermediacdn.com",
+                "hbogo.com",
+            ],
             "hbomax",
         ),
         tile(
@@ -154,6 +212,13 @@ pub fn default_seed() -> Vec<AppTile> {
 pub struct AppTileInput {
     pub name: String,
     pub base_url: String,
+    /// Extra domains a tile's webview may navigate to, *beyond* its own
+    /// `base_url` host (always allowed automatically, see
+    /// `crate::webview::effective_allowed_domains`) and the shared SSO
+    /// allowlist (`crate::webview::COMMON_SSO_DOMAINS`). Usually empty — only
+    /// needed for a tile whose login/playback flow crosses onto another
+    /// brand's domain those don't already cover.
+    #[serde(default)]
     pub allowed_domains: Vec<String>,
     #[serde(default)]
     pub icon_slug: Option<String>,
@@ -167,9 +232,6 @@ fn validate_input(input: &AppTileInput) -> Result<(), String> {
         return Err("base_url must not be empty".into());
     }
     url::Url::parse(&input.base_url).map_err(|e| format!("base_url is not a valid URL: {e}"))?;
-    if input.allowed_domains.is_empty() {
-        return Err("allowed_domains must not be empty".into());
-    }
     Ok(())
 }
 
@@ -188,16 +250,28 @@ fn registry_path<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<std::path::Pat
 impl Registry {
     pub fn load<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Self> {
         let path = registry_path(app)?;
-        let tiles = match fs::read_to_string(&path) {
-            Ok(contents) => serde_json::from_str(&contents).unwrap_or_else(|_| default_seed()),
+        let (tiles, needs_resave) = match fs::read_to_string(&path) {
+            Ok(contents) => {
+                let tiles: Vec<AppTile> =
+                    serde_json::from_str(&contents).unwrap_or_else(|_| default_seed());
+                // Same one-time migration as `Preferences::load` for
+                // installs from before secrets moved to the OS keychain:
+                // `registry.json` used to hold each tile's `jellyfin_api_key`
+                // as plaintext.
+                (tiles, migrate_legacy_jellyfin_keys(&contents))
+            }
             Err(_) => {
                 let seed = default_seed();
                 let json = serde_json::to_string_pretty(&seed).expect("seed always serializes");
                 let _ = fs::write(&path, json);
-                seed
+                (seed, false)
             }
         };
-        Ok(Self { tiles })
+        let registry = Self { tiles };
+        if needs_resave {
+            let _ = registry.save(app);
+        }
+        Ok(registry)
     }
 
     fn save<R: Runtime>(&self, app: &AppHandle<R>) -> tauri::Result<()> {
@@ -208,8 +282,8 @@ impl Registry {
         Ok(())
     }
 
-    pub fn list(&self) -> Vec<AppTile> {
-        self.tiles.clone()
+    pub fn list(&self) -> Vec<AppTileView> {
+        self.tiles.iter().map(AppTile::view).collect()
     }
 
     pub fn get(&self, id: &str) -> Option<&AppTile> {
@@ -284,12 +358,66 @@ impl Registry {
         }
         self.save(app).map_err(|e| e.to_string())
     }
+
+    /// Rebuilds tile order to match `ids`, which must be a permutation of
+    /// the existing tile ids exactly — same length *and* same set, which
+    /// together rule out a missing id, an unknown id, and a duplicate id in
+    /// one check (a length-only check would miss a duplicate standing in
+    /// for a dropped one).
+    pub fn reorder<R: Runtime>(
+        &mut self,
+        app: &AppHandle<R>,
+        ids: &[String],
+    ) -> Result<(), String> {
+        if ids.len() != self.tiles.len() {
+            return Err("ids must match the current set of tiles exactly".into());
+        }
+        let existing: std::collections::HashSet<&str> =
+            self.tiles.iter().map(|t| t.id.as_str()).collect();
+        let given: std::collections::HashSet<&str> = ids.iter().map(|id| id.as_str()).collect();
+        if given.len() != ids.len() || given != existing {
+            return Err("ids must match the current set of tiles exactly".into());
+        }
+        let reordered = ids
+            .iter()
+            .map(|id| self.tiles.iter().find(|t| &t.id == id).unwrap().clone())
+            .collect();
+        self.tiles = reordered;
+        self.save(app).map_err(|e| e.to_string())
+    }
+}
+
+/// Returns `true` if any tile's legacy plaintext `jellyfin_api_key` was
+/// found in the raw (pre-deserialize) JSON and successfully moved into the
+/// OS keychain. Reading the raw JSON rather than the parsed tiles is
+/// deliberate — see `preferences::migrate_legacy_tmdb_key`'s doc comment for
+/// why.
+fn migrate_legacy_jellyfin_keys(contents: &str) -> bool {
+    let Ok(serde_json::Value::Array(tiles)) = serde_json::from_str(contents) else {
+        return false;
+    };
+    let mut migrated_any = false;
+    for tile in &tiles {
+        let Some(id) = tile.get("id").and_then(|v| v.as_str()) else {
+            continue;
+        };
+        let Some(key) = tile.get("jellyfin_api_key").and_then(|v| v.as_str()) else {
+            continue;
+        };
+        if key.trim().is_empty() {
+            continue;
+        }
+        if secrets::set_secret(&jellyfin_keychain_account(id), key).is_ok() {
+            migrated_any = true;
+        }
+    }
+    migrated_any
 }
 
 pub type RegistryState = Mutex<Registry>;
 
 #[command]
-pub fn list_apps(registry: State<RegistryState>) -> Vec<AppTile> {
+pub fn list_apps(registry: State<RegistryState>) -> Vec<AppTileView> {
     registry.lock().unwrap().list()
 }
 
@@ -298,8 +426,8 @@ pub fn create_app(
     app: AppHandle,
     registry: State<RegistryState>,
     input: AppTileInput,
-) -> Result<AppTile, String> {
-    registry.lock().unwrap().add(&app, input)
+) -> Result<AppTileView, String> {
+    registry.lock().unwrap().add(&app, input).map(|t| t.view())
 }
 
 #[command]
@@ -308,8 +436,12 @@ pub fn update_app(
     registry: State<RegistryState>,
     id: String,
     input: AppTileInput,
-) -> Result<AppTile, String> {
-    registry.lock().unwrap().update(&app, &id, input)
+) -> Result<AppTileView, String> {
+    registry
+        .lock()
+        .unwrap()
+        .update(&app, &id, input)
+        .map(|t| t.view())
 }
 
 #[command]
@@ -319,7 +451,22 @@ pub fn delete_app(
     id: String,
 ) -> Result<(), String> {
     crate::webview::close_tile_window(&app, &id);
-    registry.lock().unwrap().remove(&app, &id)
+    crate::webview::close_pip_if_empty(&app);
+    let result = registry.lock().unwrap().remove(&app, &id);
+    // Best-effort: an already-missing keychain entry is a no-op (see
+    // `secrets::delete_secret`), so this never blocks tile removal even if
+    // no Jellyfin key was ever set for it.
+    let _ = secrets::delete_secret(&jellyfin_keychain_account(&id));
+    result
+}
+
+#[command]
+pub fn reorder_apps(
+    app: AppHandle,
+    registry: State<RegistryState>,
+    ids: Vec<String>,
+) -> Result<(), String> {
+    registry.lock().unwrap().reorder(&app, &ids)
 }
 
 #[cfg(test)]
@@ -397,15 +544,20 @@ mod tests {
         assert!(registry
             .add(
                 &tauri::test::mock_app().handle().clone(),
-                input("Name", "https://example.com/", &[])
-            )
-            .is_err());
-        assert!(registry
-            .add(
-                &tauri::test::mock_app().handle().clone(),
                 input("Name", "not a url", &["example.com"])
             )
             .is_err());
+    }
+
+    #[test]
+    fn add_accepts_empty_allowed_domains() {
+        let mut registry = empty_registry();
+        assert!(registry
+            .add(
+                &tauri::test::mock_app().handle().clone(),
+                input("Name", "https://example.com/", &[])
+            )
+            .is_ok());
     }
 
     #[test]
@@ -447,5 +599,61 @@ mod tests {
         assert!(registry.remove(app.handle(), "nonexistent").is_err());
         assert!(registry.remove(app.handle(), &tile.id).is_ok());
         assert!(registry.list().is_empty());
+    }
+
+    fn seed_three<R: Runtime>(registry: &mut Registry, app: &AppHandle<R>) -> Vec<String> {
+        ["One", "Two", "Three"]
+            .iter()
+            .map(|name| {
+                registry
+                    .add(app, input(name, "https://example.com/", &["example.com"]))
+                    .unwrap()
+                    .id
+            })
+            .collect()
+    }
+
+    #[test]
+    fn reorder_persists_new_order() {
+        let app = tauri::test::mock_app();
+        let mut registry = empty_registry();
+        let ids = seed_three(&mut registry, app.handle());
+        let permuted = vec![ids[2].clone(), ids[0].clone(), ids[1].clone()];
+
+        assert!(registry.reorder(app.handle(), &permuted).is_ok());
+        let listed: Vec<String> = registry.list().into_iter().map(|t| t.id).collect();
+        assert_eq!(listed, permuted);
+
+        // Round-trips through `registry.json`, not just the in-memory vec.
+        let reloaded = Registry::load(app.handle()).unwrap();
+        let reloaded_ids: Vec<String> = reloaded.list().into_iter().map(|t| t.id).collect();
+        assert_eq!(reloaded_ids, permuted);
+    }
+
+    #[test]
+    fn reorder_rejects_missing_id() {
+        let app = tauri::test::mock_app();
+        let mut registry = empty_registry();
+        let ids = seed_three(&mut registry, app.handle());
+        let missing_one = vec![ids[0].clone(), ids[1].clone()];
+        assert!(registry.reorder(app.handle(), &missing_one).is_err());
+    }
+
+    #[test]
+    fn reorder_rejects_unknown_id() {
+        let app = tauri::test::mock_app();
+        let mut registry = empty_registry();
+        let ids = seed_three(&mut registry, app.handle());
+        let with_unknown = vec![ids[0].clone(), ids[1].clone(), "nonexistent".to_string()];
+        assert!(registry.reorder(app.handle(), &with_unknown).is_err());
+    }
+
+    #[test]
+    fn reorder_rejects_duplicate_id() {
+        let app = tauri::test::mock_app();
+        let mut registry = empty_registry();
+        let ids = seed_three(&mut registry, app.handle());
+        let with_duplicate = vec![ids[0].clone(), ids[0].clone(), ids[1].clone()];
+        assert!(registry.reorder(app.handle(), &with_duplicate).is_err());
     }
 }
