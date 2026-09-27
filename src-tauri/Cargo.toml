@@ -1,6 +1,6 @@
 [package]
 name = "conduit"
-version = "0.1.0"
+version = "0.1.1"
 description = "A cross-platform fullscreen launcher for streaming services"
 authors = ["Andy Gilbreath"]
 edition = "2021"
