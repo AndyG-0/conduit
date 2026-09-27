@@ -486,6 +486,21 @@ mod tests {
         Registry { tiles: vec![] }
     }
 
+    // `tauri::test::mock_app()` resolves `app_config_dir()` to the same real,
+    // fixed path every time rather than a per-test temp dir (see the same
+    // note in `preferences.rs`), and Rust runs `#[test]` fns concurrently on
+    // separate threads within this one binary. Any test that can reach
+    // `Registry::save` — directly, via `add`/`update`/`remove`/`reorder`
+    // succeeding, or indirectly via `seed_three`'s `add` calls — must hold
+    // this lock for its duration, or a concurrently-running test's write to
+    // that shared `registry.json` can land in the middle of another test's
+    // save-then-load assertion.
+    static REGISTRY_FS_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    fn lock_registry_fs() -> std::sync::MutexGuard<'static, ()> {
+        REGISTRY_FS_LOCK.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
     #[test]
     fn slugify_basic() {
         assert_eq!(slugify("Disney+"), "disney");
@@ -551,6 +566,7 @@ mod tests {
 
     #[test]
     fn add_accepts_empty_allowed_domains() {
+        let _guard = lock_registry_fs();
         let mut registry = empty_registry();
         assert!(registry
             .add(
@@ -562,6 +578,7 @@ mod tests {
 
     #[test]
     fn add_assigns_slugified_unique_id_and_persists() {
+        let _guard = lock_registry_fs();
         let app = tauri::test::mock_app();
         let mut registry = empty_registry();
         let tile = registry
@@ -588,6 +605,7 @@ mod tests {
 
     #[test]
     fn remove_rejects_unknown_id_and_removes_known_one() {
+        let _guard = lock_registry_fs();
         let app = tauri::test::mock_app();
         let mut registry = empty_registry();
         let tile = registry
@@ -615,6 +633,7 @@ mod tests {
 
     #[test]
     fn reorder_persists_new_order() {
+        let _guard = lock_registry_fs();
         let app = tauri::test::mock_app();
         let mut registry = empty_registry();
         let ids = seed_three(&mut registry, app.handle());
@@ -632,6 +651,7 @@ mod tests {
 
     #[test]
     fn reorder_rejects_missing_id() {
+        let _guard = lock_registry_fs();
         let app = tauri::test::mock_app();
         let mut registry = empty_registry();
         let ids = seed_three(&mut registry, app.handle());
@@ -641,6 +661,7 @@ mod tests {
 
     #[test]
     fn reorder_rejects_unknown_id() {
+        let _guard = lock_registry_fs();
         let app = tauri::test::mock_app();
         let mut registry = empty_registry();
         let ids = seed_three(&mut registry, app.handle());
@@ -650,6 +671,7 @@ mod tests {
 
     #[test]
     fn reorder_rejects_duplicate_id() {
+        let _guard = lock_registry_fs();
         let app = tauri::test::mock_app();
         let mut registry = empty_registry();
         let ids = seed_three(&mut registry, app.handle());
