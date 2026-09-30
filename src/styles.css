@@ -64,7 +64,16 @@ body {
      a little breathing room, so the focused/hovered row it's actually
      describing isn't the one it visually covers. */
   padding: calc(38vh + 2vh) 4vw 4vh;
+  /* `safe`: centered when the tiles fit, top-aligned when they don't. Plain
+     `center` overflows a too-tall grid equally off the top and bottom, and a
+     scroll container can't scroll to content above its start, so the first
+     rows ended up hidden and unreachable in a short window. The plain
+     `center` line is a fallback for engines without `safe` support. */
   align-content: center;
+  align-content: safe center;
+  /* Keeps a keyboard/gamepad-focused tile that scrolls into view below the
+     fixed hero banner (`.tile-banner`, 38vh) instead of behind it. */
+  scroll-padding-top: calc(38vh + 2vh);
   overflow-y: auto;
 }
 
@@ -365,11 +374,19 @@ body {
   padding: 4vh 4vw;
 }
 
+/* Sticky so Back stays reachable however far down the settings list is
+   scrolled. */
 .settings-header {
+  position: sticky;
+  top: -4vh;
+  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 1.5rem;
+  margin: -4vh -4vw 1.5rem;
+  padding: 4vh 4vw 1rem;
+  background: var(--bg-page);
+  border-bottom: 1px solid var(--border);
 }
 
 .settings-header h1 {
@@ -398,6 +415,14 @@ body {
   margin-bottom: 1.5rem;
 }
 
+.settings-fullscreen-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.settings-fullscreen-row button,
 .settings-tmdb-key-row button {
   background: var(--surface-strong);
   border: 1px solid var(--border);

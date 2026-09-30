@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-fetch-aerial-catalog"
+description = "Enables the fetch_aerial_catalog command without any pre-configured scope."
+commands.allow = ["fetch_aerial_catalog"]
+
+[[permission]]
+identifier = "deny-fetch-aerial-catalog"
+description = "Denies the fetch_aerial_catalog command without any pre-configured scope."
+commands.deny = ["fetch_aerial_catalog"]

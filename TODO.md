@@ -4,17 +4,17 @@ Chronological build order for what's still open — items are dropped from
 this doc once shipped, not left here marked "done." See
 [`ARCHITECTURE.md`](ARCHITECTURE.md) for the stack decision and the
 Raspberry Pi / general-Linux spike results, and [`README.md`](README.md)
-for the current shipped feature set. Items 1, 2, 4, 6, 7, 7a, and 9 from
+for the current shipped feature set. Items 1, 2, 4, 6, 7, 7a, 9, 12, and 14 from
 earlier passes have shipped or closed and are gone from here for that
 reason — their content lives in those two docs and in git history, not
 duplicated here.
 
 **Scope is Windows and macOS only** — Linux and Pi are dropped, not
-deferred (see `ARCHITECTURE.md`). The macOS build-out is functionally
-complete. What's open now: Windows verification (item 8), real-hardware
-checks for remote/controller input (items 3/5), making the update
-mechanism real (item 11), the Windows half of packaging/autostart (items
-10/12), and cutting the first tagged release (item 14).
+deferred (see `ARCHITECTURE.md`). Both platforms build, run, and
+ship from the same release workflow. What's open now: finishing Windows
+DRM verification (item 8), real-hardware checks for remote/controller
+input (items 3/5), Windows autostart/kiosk checks (item 10), and making the
+update mechanism real (item 11).
 
 ## 3. Remote control support
 
@@ -34,15 +34,20 @@ itself needs a real-hardware check before relying on it.
 ## 8. Windows verification
 
 Repeat the macOS DRM check (see `ARCHITECTURE.md`'s stack decision)
-against WebView2. Expected to work per that rationale, but not yet
-empirically checked.
+against WebView2. Partially checked: WebView2 exposes both Widevine and
+PlayReady (hardware PlayReady SL3000 is not available), and Netflix plays.
+ESPN needed a Chrome UA and Client Hints override (`CHROME_USER_AGENT_DOMAINS` in
+`src-tauri/src/webview.rs`) because its Disney player routes the Edge
+brand to PlayReady and then fails with Error Code 28, even in real Edge.
+Still unchecked: the other seeded services.
 
 ## 10. Windows autostart / kiosk integration
 
-`tauri-plugin-autostart` already supports Windows (Startup Task/registry
-entry) — macOS is wired in and working, Windows just isn't exercised or
-tested yet. Deferred until Windows work starts. Platform-specific README
-section still to be written once it lands.
+`tauri-plugin-autostart` is wired in on both platforms, and the Settings
+toggle is the same (a registry Run entry on Windows). Still to check on
+real hardware: a fresh Windows login actually launches Conduit, and
+whether a kiosk-style setup (e.g. Assigned Access, or launching straight
+to fullscreen) is worth supporting.
 
 ## 11. Update mechanism — scaffold only, not functional
 
@@ -69,13 +74,6 @@ yet either.
 6. Add a capability entry (`updater:default`) and a frontend "check for
    updates" UI once the above is real.
 
-## 12. Packaging & release CI — Windows build matrix still open
-
-The macOS slice (`.github/workflows/release.yml`, `scripts/release.sh`) is
-done — see [`CONTRIBUTING.md`](CONTRIBUTING.md) for the release mechanics.
-A Windows build matrix entry still needs to be added once Windows work
-starts (item 8).
-
 ## 13. Testing — macOS E2E not currently feasible
 
 Rust and frontend unit tests are in place and run in CI
@@ -85,11 +83,5 @@ feasible on macOS today: Tauri's WebDriver harness (`tauri-driver`) only
 supports WebView2 (Windows) and WebKitGTK (Linux) — there's no WKWebView
 backend. Manual verification (`scripts/dev.sh`) is the fallback until that
 changes or an alternative (e.g. driving the app via Accessibility APIs)
-gets evaluated. Windows E2E via `tauri-driver` should be feasible once
-Windows work starts (item 8) and is worth revisiting then.
-
-## 14. First release not yet cut
-
-Cutting the actual first tagged release is still a deliberate manual step
-for whenever the maintainer decides it's ready — see `CONTRIBUTING.md` for
-the exact steps (`scripts/release.sh`).
+gets evaluated. Windows E2E via `tauri-driver` (which does support
+WebView2) is feasible now and worth evaluating next.

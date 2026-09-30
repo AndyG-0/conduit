@@ -210,9 +210,14 @@ Lower risk given native DRM support, but Netflix-tier 1080p/4K playback
 inside a WebView2/WKWebView-hosted native embedded webview has its own
 quirks (EME permission prompts, fullscreen-video handoff). The macOS half
 of this is what this project's initial prototype already confirmed
-(Netflix DRM playback via Tauri/WKWebView, see the stack decision above);
-Windows verification is deferred until Windows work starts (see
-`TODO.md`).
+(Netflix DRM playback via Tauri/WKWebView, see the stack decision above).
+On Windows, Netflix plays and WebView2 exposes both Widevine and PlayReady.
+One real quirk has come up: WebView2 identifies as Edge, and some players
+choose their DRM by browser brand. ESPN's Disney player sends Edge to
+PlayReady and then fails (Error Code 28, in real Edge too), so the ESPN
+tile gets a Chrome UA and Client Hints on Windows (see `DESKTOP_CHROME_USER_AGENT` in
+`src-tauri/src/webview.rs`). Expect other Edge-specific player failures to
+have the same fix. The remaining Windows checks are tracked in `TODO.md`.
 
 ## Alternatives considered
 

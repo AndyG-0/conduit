@@ -10,11 +10,12 @@ credential handling beyond what each site's own login page does inside its
 own sandboxed session. It's a shell that makes a pile of unrelated
 streaming sites feel like one coherent TV interface.
 
-**Status: macOS build-out done, Windows verification next.** A
+**Status: runs on macOS and Windows.** A
 registry-driven app grid (12 seeded services + custom tiles via Settings),
 keyboard and best-effort gamepad spatial navigation, per-tile session
-isolation with domain-confinement, and macOS launch-at-login are all
-working. See [`TODO.md`](TODO.md) for exactly what's done vs. deferred,
+isolation with domain-confinement, and launch-at-login are all
+working. On Windows, DRM playback is checked for only some of the
+seeded services so far. See [`TODO.md`](TODO.md) for exactly what's done vs. deferred,
 including known gaps (no physical gamepad was available to test against;
 automated macOS E2E isn't feasible with current Tauri tooling). Linux and
 Raspberry Pi were part of the original premise but are now out of scope —
@@ -59,24 +60,28 @@ see [`ARCHITECTURE.md`](ARCHITECTURE.md) for why.
   over other apps, independent of Conduit's own window.
 - **Help** (in-window, `?` tile on the grid): a keyboard-shortcuts reference
   and a short overview of how tiles and icons work.
-- **macOS launch at login** via `tauri-plugin-autostart`, toggled from
-  Settings.
+- **Launch at login** (a LaunchAgent on macOS, a registry Run entry on
+  Windows) via `tauri-plugin-autostart`, toggled from Settings.
 
 ## Keyboard shortcuts
 
-| Shortcut            | Action                                        |
-| -------------------- | ---------------------------------------------- |
-| Arrow keys           | Move focus around the grid                     |
-| Enter                | Launch the focused tile                        |
-| Cmd+Enter            | Toggle full screen                             |
-| Cmd+Shift+Escape     | Return to the grid from a tile                 |
-| Cmd+Shift+R          | Refresh the active tile                        |
-| Cmd+Shift+P          | Toggle picture-in-picture for the active tile  |
-| Cmd+[                | Go back in the active tile's history           |
-| Cmd+]                | Go forward in the active tile's history        |
-| Cmd+Shift+H          | Return to the tile grid (View > Home)          |
-| ?                    | Open the Help panel                            |
-| Escape               | Close a panel (Settings or Help)               |
+The same shortcuts on both platforms, with Ctrl in place of Cmd on Windows.
+The one exception is Return to grid: Windows reserves Ctrl+Shift+Escape for
+Task Manager, so Conduit uses Ctrl+Shift+Backspace there instead.
+
+| macOS                | Windows              | Action                                        |
+| -------------------- | -------------------- | --------------------------------------------- |
+| Arrow keys           | Arrow keys           | Move focus around the grid                    |
+| Enter                | Enter                | Launch the focused tile                       |
+| Cmd+Enter            | Ctrl+Enter           | Toggle full screen                            |
+| Cmd+Shift+Escape     | Ctrl+Shift+Backspace | Return to the grid from a tile                |
+| Cmd+Shift+R          | Ctrl+Shift+R         | Refresh the active tile                       |
+| Cmd+Shift+P          | Ctrl+Shift+P         | Toggle picture-in-picture for the active tile |
+| Cmd+[                | Ctrl+[               | Go back in the active tile's history          |
+| Cmd+]                | Ctrl+]               | Go forward in the active tile's history       |
+| Cmd+Shift+H          | Ctrl+Shift+H         | Return to the tile grid (View > Home)         |
+| ?                    | ?                    | Open the Help panel                           |
+| Escape               | Escape               | Close a panel (Settings or Help)              |
 
 ## Development
 
@@ -92,11 +97,14 @@ suite, and code conventions.
 
 Tagged releases are built and published automatically
 (`.github/workflows/release.yml`): a `v*` tag push builds an ad-hoc-signed
-macOS `.app`/`.dmg` and publishes them as a GitHub Release, with the
+macOS `.app`/`.dmg` and unsigned Windows installers (`.msi` and an NSIS
+`-setup.exe`), and publishes them together as one GitHub Release, with the
 matching [`CHANGELOG.md`](CHANGELOG.md) section as the release notes.
-Releases are ad-hoc signed, not notarized (no Apple Developer ID yet), so
-macOS Gatekeeper blocks the app on first launch — the release notes explain
-the right-click → **Open** workaround. See [`CONTRIBUTING.md`](CONTRIBUTING.md)
+Neither platform is really signed yet (no Apple Developer ID or Windows
+code-signing certificate), so macOS Gatekeeper blocks the app on first
+launch and Windows SmartScreen may warn about the installer. The release
+notes explain both workarounds. The same workflow can be run by hand from
+the Actions tab to build installers from a branch without publishing. See [`CONTRIBUTING.md`](CONTRIBUTING.md)
 for how a release is cut.
 
 ## Repository layout

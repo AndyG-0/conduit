@@ -8,7 +8,14 @@ use crate::webview;
 /// The key combo that returns focus to the launcher grid while the Netflix
 /// webview is focused. Deliberately not plain `Escape` — macOS fullscreen
 /// video players commonly bind that to exit-fullscreen.
+///
+/// Windows gets a different combo: `Ctrl+Shift+Escape` (what `CmdOrCtrl`
+/// would resolve to) is reserved by Windows itself to open Task Manager, so
+/// `RegisterHotKey` can never claim it.
+#[cfg(not(windows))]
 pub const BACK_TO_GRID_SHORTCUT: &str = "CmdOrCtrl+Shift+Escape";
+#[cfg(windows)]
+pub const BACK_TO_GRID_SHORTCUT: &str = "Ctrl+Shift+Backspace";
 
 /// Reloads the active tile — e.g. to recover from a dropped connection.
 /// Deliberately not plain `Cmd+R`: this has to be a true OS-global hotkey

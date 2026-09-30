@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-fetch-trending-catalog"
+description = "Enables the fetch_trending_catalog command without any pre-configured scope."
+commands.allow = ["fetch_trending_catalog"]
+
+[[permission]]
+identifier = "deny-fetch-trending-catalog"
+description = "Denies the fetch_trending_catalog command without any pre-configured scope."
+commands.deny = ["fetch_trending_catalog"]

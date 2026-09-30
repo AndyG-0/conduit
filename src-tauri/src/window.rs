@@ -14,6 +14,17 @@ pub fn toggle_fullscreen_impl(app: &AppHandle) -> tauri::Result<bool> {
     let window = app.get_window("main").ok_or(tauri::Error::WindowNotFound)?;
     let is_fullscreen = window.is_fullscreen()?;
     window.set_fullscreen(!is_fullscreen)?;
+    // Windows' menubar lives inside the window (see `menu::install`), so
+    // unlike macOS's it'd otherwise stay on screen in fullscreen. Its
+    // accelerators keep working while it's hidden.
+    #[cfg(windows)]
+    {
+        if is_fullscreen {
+            window.show_menu()?;
+        } else {
+            window.hide_menu()?;
+        }
+    }
     // auto_resize would eventually resync the active tile's bounds on its
     // own via the Resized event this also triggers, but that's gated on
     // macOS's fullscreen animation finishing — do it immediately instead.

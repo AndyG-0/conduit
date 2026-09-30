@@ -1,0 +1,10 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "tile-remote",
+  "description": "What a tile's remote streaming page may call: only the two commands Conduit's own injected tile scripts use.",
+  "windows": ["main", "pip"],
+  "remote": {
+    "urls": ["https://*", "https://*:*", "http://*", "http://*:*"]
+  },
+  "permissions": ["tile-page"]
+}

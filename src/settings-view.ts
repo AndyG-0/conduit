@@ -11,6 +11,7 @@ import {
   KNOWN_ICON_SLUGS,
 } from "./icons";
 import { renderGrid, focusGrid, hideTileBanner } from "./main";
+import { primaryModifierLabel } from "./platform";
 import { applyTheme } from "./theme";
 import { refreshTrendingCatalog } from "./trending";
 import { refreshJellyfinBanner } from "./jellyfin";
@@ -172,20 +173,24 @@ function formMarkup(tile?: AppTile, blockedDomains: string[] = []): string {
 }
 
 async function renderSettings(editingId: string | null = null): Promise<void> {
-  const [tiles, autostartEnabled, preferences] = await Promise.all([
+  const [tiles, autostartEnabled, preferences, fullscreen] = await Promise.all([
     invoke<AppTile[]>("list_apps"),
     isAutostartEnabled(),
     invoke<Preferences>("get_preferences"),
+    invoke<boolean>("is_fullscreen"),
   ]);
   const editing = editingId ? tiles.find((t) => t.id === editingId) : undefined;
   const blockedDomains = editing
     ? await invoke<string[]>("list_blocked_domains", { tileId: editing.id })
     : [];
 
+  // Re-renders (after a save, remove, or allow) keep the user's place in
+  // the list rather than jumping back to the top.
+  const previousScrollTop = panel.scrollTop;
   panel.innerHTML = `
     <div class="settings-header">
       <h1>Settings</h1>
-      <button type="button" id="settings-close">Back</button>
+      <button type="button" id="settings-close">← Home</button>
     </div>
     <label class="settings-autostart">
       <input type="checkbox" id="autostart-toggle" ${autostartEnabled ? "checked" : ""} />
@@ -202,6 +207,10 @@ async function renderSettings(editingId: string | null = null): Promise<void> {
       <select id="theme-select">${themeOptions(preferences.theme)}</select>
     </label>
     <p class="settings-autostart-error" id="theme-error" hidden></p>
+    <div class="settings-fullscreen-row">
+      <button type="button" id="fullscreen-toggle">${fullscreenLabel(fullscreen)}</button>
+      <span class="settings-key-status">Shortcut: ${primaryModifierLabel()}+Enter</span>
+    </div>
     <label class="settings-autostart">
       TMDB API key (for the trending tile banner)
       <input
@@ -239,6 +248,14 @@ async function renderSettings(editingId: string | null = null): Promise<void> {
     .addEventListener("click", () => {
       closeSettings();
     });
+
+  const fullscreenToggle =
+    panel.querySelector<HTMLButtonElement>("#fullscreen-toggle")!;
+  fullscreenToggle.addEventListener("click", () => {
+    void invoke<boolean>("toggle_fullscreen").then((isFullscreen) => {
+      fullscreenToggle.textContent = fullscreenLabel(isFullscreen);
+    });
+  });
 
   const autostartError = panel.querySelector<HTMLElement>("#autostart-error")!;
   panel
@@ -463,12 +480,29 @@ async function renderSettings(editingId: string | null = null): Promise<void> {
     })();
   });
 
-  panel.querySelector<HTMLInputElement>("input[name=name]")?.focus();
+  // Editing a tile jumps to its form (the whole point of clicking Edit);
+  // otherwise start focus on Back, at the top. Focusing the form's Name
+  // input unconditionally used to scroll the panel down to the form on
+  // open, pushing Back and the preferences above it out of view whenever
+  // the tile list is taller than the window.
+  if (editing) {
+    nameInput.focus();
+  } else {
+    panel.scrollTop = previousScrollTop;
+    panel
+      .querySelector<HTMLButtonElement>("#settings-close")!
+      .focus({ preventScroll: true });
+  }
+}
+
+function fullscreenLabel(isFullscreen: boolean): string {
+  return isFullscreen ? "Exit full screen" : "Enter full screen";
 }
 
 export function openSettings(): void {
   grid.hidden = true;
   panel.hidden = false;
+  panel.scrollTop = 0;
   hideTileBanner();
   void renderSettings();
 }
@@ -478,6 +512,16 @@ export function closeSettings(): void {
   grid.hidden = false;
   void renderGrid().then(focusGrid);
 }
+
+// Keeps the full-screen button's label right when fullscreen is toggled
+// some other way (the shortcut or View menu) while Settings is open.
+window.addEventListener("resize", () => {
+  const toggle = panel.querySelector<HTMLButtonElement>("#fullscreen-toggle");
+  if (panel.hidden || !toggle) return;
+  void invoke<boolean>("is_fullscreen").then((isFullscreen) => {
+    toggle.textContent = fullscreenLabel(isFullscreen);
+  });
+});
 
 window.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && !panel.hidden) {

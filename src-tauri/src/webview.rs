@@ -112,6 +112,167 @@ pub const COMMON_CAPTCHA_DOMAINS: &[&str] = &["www.google.com", "gstatic.com", "
 const DESKTOP_SAFARI_USER_AGENT: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) \
     AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15";
 
+/// A desktop Chrome-on-Windows UA string, applied on Windows only to tiles
+/// whose site is in `CHROME_USER_AGENT_DOMAINS`. WebView2's default UA ends
+/// in `Edg/<version>`, and some players pick their DRM system from the
+/// browser *brand* rather than by probing EME. ESPN's Disney player
+/// (`client-sdk-configs.bamgrid.com/.../chromium/edge/prod.json`) routes Edge
+/// to PlayReady. The license exchange succeeds, but playback then fails with
+/// "Error Code 28" in both WebView2 and real Edge. The same stream plays in
+/// Chrome, where the player picks Widevine. Hiding PlayReady from
+/// `requestMediaKeySystemAccess` didn't change the player's choice, while
+/// switching the UA to Chrome in Edge's DevTools made it play immediately.
+/// That confirms the brand, not EME support, drives the choice. WebView2
+/// ships a working Widevine CDM, so claiming Chrome is truthful about the
+/// engine.
+///
+/// Scoped per-site rather than applied to every Windows tile: Netflix and
+/// others already play correctly under the default Edge UA (Netflix via
+/// PlayReady, which gets it higher resolutions than Widevine L3 would).
+/// Same "a version or two behind is fine" reasoning as
+/// `DESKTOP_SAFARI_USER_AGENT`; bump by hand if a site starts rejecting it.
+const DESKTOP_CHROME_USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) \
+    AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36";
+
+/// Sites (matched against a tile's `base_url` host, suffix-matched like
+/// `domain_allowed`) that get `DESKTOP_CHROME_USER_AGENT` on Windows. Keyed on
+/// host rather than tile id so a user-added ESPN tile gets the fix too.
+#[cfg_attr(not(windows), allow(dead_code))]
+const CHROME_USER_AGENT_DOMAINS: &[&str] = &["espn.com"];
+
+#[cfg_attr(not(windows), allow(dead_code))]
+fn wants_chrome_user_agent(base_url: &Url) -> bool {
+    let Some(host) = base_url.host_str() else {
+        return false;
+    };
+    CHROME_USER_AGENT_DOMAINS
+        .iter()
+        .any(|d| host == *d || host.ends_with(&format!(".{d}")))
+}
+
+/// Rewrites `navigator.userAgentData` (UA Client Hints) to match
+/// `DESKTOP_CHROME_USER_AGENT`. The UA string override alone was not enough
+/// for ESPN: WebView2 still reported `Microsoft Edge` / `Microsoft Edge
+/// WebView2` brands, and the player still loaded its Edge config. DevTools'
+/// "Chrome - Windows" preset, which did fix it, overrides both the UA string
+/// and these brands. The script keeps the engine's real version numbers and
+/// platform, swaps the Edge brand for `Google Chrome`, and drops the WebView2
+/// brand, so the result looks like the Chrome build the engine matches.
+/// Only the JS API is covered; the `Sec-CH-UA` request headers still say
+/// Edge, and WebView2 has no API to change them.
+const CHROME_CLIENT_HINTS_SCRIPT: &str = r#"(() => {
+  const real = navigator.userAgentData;
+  if (!real) return;
+  const rebrand = (list) =>
+    (list || [])
+      .filter((b) => !/WebView2/i.test(b.brand))
+      .map((b) => (/Microsoft Edge/i.test(b.brand) ? { ...b, brand: 'Google Chrome' } : b));
+  const brands = rebrand(real.brands);
+  const fake = Object.create(Object.getPrototypeOf(real));
+  Object.defineProperties(fake, {
+    brands: { value: brands, enumerable: true },
+    mobile: { value: real.mobile, enumerable: true },
+    platform: { value: real.platform, enumerable: true },
+    getHighEntropyValues: {
+      value: (hints) =>
+        real.getHighEntropyValues(hints).then((v) => {
+          const out = { ...v, brands };
+          if (v.fullVersionList) out.fullVersionList = rebrand(v.fullVersionList);
+          return out;
+        }),
+    },
+    toJSON: { value: () => ({ brands, mobile: real.mobile, platform: real.platform }) },
+  });
+  Object.defineProperty(Navigator.prototype, 'userAgentData', {
+    get: () => fake,
+    configurable: true,
+  });
+  if (window === window.top) {
+    console.info('[conduit:ua] userAgentData brands ->', JSON.stringify(brands));
+  }
+})();"#;
+
+/// Hides WebView2's `window.chrome.webview` from tile pages. Prime Video's
+/// web client (`DVWebClient_app`) checks whether `chrome.webview` exists
+/// during startup, most likely to detect Amazon's own WebView2-based Windows
+/// app. If it does, the client reads `chrome.webview.hostObjects.sync.<...>`
+/// inside the player's constructor. Conduit registers no host objects, so
+/// that read throws (`Element not found. (0x80070490)`, or a TypeError if
+/// only `hostObjects` is hidden). Player setup dies, and the Play button
+/// never enables. Real Edge and macOS have no `chrome.webview`, which is why
+/// Prime plays there.
+///
+/// Conduit's own tile scripts still need it. On `https://` pages Tauri's IPC
+/// falls back from its custom protocol to wry's
+/// `window.ipc.postMessage = s => window.chrome.webview.postMessage(s)`,
+/// which reads `chrome.webview` at call time and is always called from
+/// Tauri's `sendIpcMessage` (tauri `scripts/ipc-protocol.js`). So the
+/// property becomes a getter that returns the real object only when that
+/// function is on the call stack, and `undefined` for page code.
+///
+/// This is a compatibility shim, not a security boundary: a page can get the
+/// real object back by naming its own function `sendIpcMessage`. What a page
+/// can reach over IPC is decided by the capabilities
+/// (`capabilities/tile-remote.json`), not by hiding this.
+#[cfg(windows)]
+const HIDE_CHROME_WEBVIEW_SCRIPT: &str = r#"(() => {
+  const chrome = window.chrome;
+  const real = chrome && chrome.webview;
+  if (!real) return;
+  try {
+    Object.defineProperty(chrome, 'webview', {
+      configurable: true,
+      enumerable: false,
+      get() {
+        const limit = Error.stackTraceLimit;
+        Error.stackTraceLimit = 20;
+        const stack = new Error().stack || '';
+        Error.stackTraceLimit = limit;
+        return /\bsendIpcMessage\b/.test(stack) ? real : undefined;
+      },
+    });
+  } catch (e) {
+    console.warn('[conduit:webview] could not hide chrome.webview', e);
+  }
+  if (window === window.top) {
+    console.info('[conduit:webview] chrome.webview hidden:', window.chrome.webview === undefined);
+  }
+})();"#;
+
+/// Site-compatibility init scripts for every webview belonging to a tile
+/// (the tile itself, its PiP copy, and its sign-in popups), given that
+/// tile's `tile_user_agent`: `HIDE_CHROME_WEBVIEW_SCRIPT` on Windows, plus
+/// `CHROME_CLIENT_HINTS_SCRIPT` when the tile claims to be Chrome so the
+/// Client Hints agree with the UA string.
+fn tile_compat_scripts(user_agent: Option<&str>) -> Vec<&'static str> {
+    let mut scripts = Vec::new();
+    #[cfg(windows)]
+    scripts.push(HIDE_CHROME_WEBVIEW_SCRIPT);
+    if user_agent == Some(DESKTOP_CHROME_USER_AGENT) {
+        scripts.push(CHROME_CLIENT_HINTS_SCRIPT);
+    }
+    scripts
+}
+
+/// The UA override (if any) for every webview belonging to the tile at
+/// `base_url`: the tile itself, its PiP copy, and its sign-in popups.
+fn tile_user_agent(base_url: &Url) -> Option<&'static str> {
+    #[cfg(target_os = "macos")]
+    {
+        let _ = base_url;
+        Some(DESKTOP_SAFARI_USER_AGENT)
+    }
+    #[cfg(windows)]
+    {
+        wants_chrome_user_agent(base_url).then_some(DESKTOP_CHROME_USER_AGENT)
+    }
+    #[cfg(not(any(target_os = "macos", windows)))]
+    {
+        let _ = base_url;
+        None
+    }
+}
+
 /// `allowed_domains` plus the tile's own `base_url` host — the set actually
 /// checked at navigation time. Callers never need to (and the settings UI no
 /// longer asks users to) list a tile's own domain explicitly: a tile can
@@ -188,32 +349,24 @@ fn next_popup_label(tile_id: &str) -> String {
 /// provider) happens to serve the relay page from — no need to hardcode or
 /// guess that host up front the way an origin allowlist would.
 ///
-/// TEMPORARY: also `console.log`s every message's origin, and forwards that
-/// same line through the `debug_log` command (see `lib.rs`) so it lands in
-/// `/tmp/conduit-debug.log` too, not just the opener's own devtools console
-/// (easy to miss if devtools isn't already open at the right moment). Remove
-/// once the credential hand-off (`popup_credential_capture_script`) is
-/// confirmed working end-to-end.
-fn popup_close_listener_script(tile_id: &str) -> String {
-    format!(
-        r#"(() => {{
+/// The tile page is a remote origin, so this `invoke` only works because
+/// `capabilities/tile-remote.json` grants it `close_tile_popups`, which takes
+/// no arguments: the tile is whichever webview called it.
+fn popup_close_listener_script() -> &'static str {
+    r#"(() => {
   const openedWindows = new Set();
   const nativeOpen = window.open;
-  window.open = function (...args) {{
+  window.open = function (...args) {
     const win = nativeOpen.apply(window, args);
     if (win) openedWindows.add(win);
     return win;
-  }};
-  window.addEventListener('message', (event) => {{
-    const line = '[conduit:popup-message] origin=' + event.origin + ' fromOpenedPopup=' + openedWindows.has(event.source);
-    console.log(line);
-    window.__TAURI__.core.invoke('debug_log', {{ msg: line }}).catch(() => {{}});
-    if (openedWindows.has(event.source)) {{
-      window.__TAURI__.core.invoke('close_tile_popups', {{ tileId: {tile_id:?} }}).catch(() => {{}});
-    }}
-  }});
-}})();"#
-    )
+  };
+  window.addEventListener('message', (event) => {
+    if (openedWindows.has(event.source)) {
+      window.__TAURI__.core.invoke('close_tile_popups').catch(() => {});
+    }
+  });
+})();"#
 }
 
 /// Relays user activity from inside a tile's own webview back to Rust, so
@@ -267,16 +420,18 @@ fn tile_activity_listener_script() -> String {
 /// (`accounts.google.com`), which Tauri's IPC transport does not trust the
 /// way it trusts the tile's own webview. Detecting this navigation natively,
 /// from the Rust side, sidesteps that entirely.
+#[cfg(target_os = "macos")]
 fn is_gsi_transform_relay(url: &Url) -> bool {
     url.host_str() == Some("accounts.google.com") && url.path() == "/gsi/transform"
 }
 
-/// Appends a line to `/tmp/conduit-debug.log`, the same fixed file `lib.rs`'s
+/// Appends a line to the `conduit-debug.log` debug file, the same fixed file `lib.rs`'s
 /// `debug_log` command writes to — duplicated here rather than reusing that
 /// command directly because this is called from native Rust code, not via an
 /// `invoke()` from JS. No-ops in release builds: this exists for diagnosing
 /// the popup credential hand-off below, not as a production logging
 /// mechanism, so it stays silent (and writes nothing to disk) once shipped.
+#[cfg(target_os = "macos")]
 fn append_debug_log(msg: &str) {
     #[cfg(debug_assertions)]
     {
@@ -284,7 +439,7 @@ fn append_debug_log(msg: &str) {
         if let Ok(mut f) = std::fs::OpenOptions::new()
             .create(true)
             .append(true)
-            .open("/tmp/conduit-debug.log")
+            .open(crate::debug_log_path())
         {
             let _ = writeln!(f, "[rust-debug] {msg}");
         }
@@ -300,6 +455,7 @@ fn append_debug_log(msg: &str) {
 /// Used before logging a captured Google credential so its *shape* (field
 /// names, nesting, roughly how long each token is) is visible for debugging
 /// without writing a usable bearer credential to a local file.
+#[cfg(target_os = "macos")]
 fn truncate_json_strings(value: &mut serde_json::Value) {
     match value {
         serde_json::Value::String(s) if s.len() > 20 => {
@@ -361,6 +517,13 @@ fn truncate_json_strings(value: &mut serde_json::Value) {
 /// navigation inside the popup (that's what an initialization script does),
 /// so whichever page inside `accounts.google.com` actually performs the
 /// handoff gets the fake opener too.
+///
+/// macOS only. On Windows, wry hands WebView2 the popup via `SetNewWindow`,
+/// so `window.opener` is real and the relay's `postMessage` reaches the tile
+/// directly. There the fake would shadow the real opener and swallow the
+/// message, and wry's `WindowCloseRequested` handler destroys the popup as
+/// soon as Google calls `window.close()`, before the capture ever runs.
+#[cfg(target_os = "macos")]
 fn popup_opener_shim_script() -> &'static str {
     r#"(() => {
   if (window.location.hostname !== 'accounts.google.com') return;
@@ -392,11 +555,11 @@ fn popup_opener_shim_script() -> &'static str {
 /// WebKit runs same-injection-time user scripts in the order they were
 /// added) that captures console output, uncaught errors, and unhandled
 /// promise rejections into `window.__conduit.logs` for
-/// [`handle_captured_credential`] to dump to `/tmp/conduit-debug.log`, and
+/// [`handle_captured_credential`] to dump to the `conduit-debug.log` debug file, and
 /// confirms the opener shim actually stuck. Purely diagnostic — the actual
 /// fix works without this. Remove once the popup hand-off has been reliable
 /// for a while and this stops earning its keep.
-#[cfg(debug_assertions)]
+#[cfg(all(target_os = "macos", debug_assertions))]
 fn popup_diagnostic_logging_script() -> &'static str {
     r#"(() => {
   window.__conduit = window.__conduit || {};
@@ -467,8 +630,9 @@ fn popup_diagnostic_logging_script() -> &'static str {
 ///   case some other relay path uses that hook instead of `postMessage`.
 ///
 /// In debug builds, also logs the captured console output and a truncated
-/// view of any payload to `/tmp/conduit-debug.log` (via [`append_debug_log`],
+/// view of any payload to the `conduit-debug.log` debug file (via [`append_debug_log`],
 /// a no-op in release).
+#[cfg(target_os = "macos")]
 fn handle_captured_credential(app: &AppHandle, tile_id: &str, eval_result: &str) {
     let inner_json: serde_json::Value = match serde_json::from_str(eval_result) {
         Ok(v) => v,
@@ -593,12 +757,13 @@ fn handle_captured_credential(app: &AppHandle, tile_id: &str, eval_result: &str)
 /// (populated by [`popup_opener_shim_script`]) via `eval_with_callback`,
 /// hands the result to [`handle_captured_credential`] to relay onto the
 /// opener tile, and closes the now-finished popup.
+#[cfg(target_os = "macos")]
 fn schedule_credential_capture(app: AppHandle, tile_id: String, popup_label: String) {
     std::thread::spawn(move || {
         std::thread::sleep(std::time::Duration::from_millis(1500));
         let _ = app.clone().run_on_main_thread(move || {
             let Some(popup) = app.get_webview(&popup_label) else {
-                close_tile_popups(app, tile_id);
+                close_popups_for_tile(&app, &tile_id);
                 return;
             };
             let capture_app = app.clone();
@@ -606,10 +771,10 @@ fn schedule_credential_capture(app: AppHandle, tile_id: String, popup_label: Str
             let eval_result =
                 popup.eval_with_callback("JSON.stringify(window.__conduit || {})", move |result| {
                     handle_captured_credential(&capture_app, &capture_tile_id, &result);
-                    close_tile_popups(capture_app.clone(), capture_tile_id.clone());
+                    close_popups_for_tile(&capture_app, &capture_tile_id);
                 });
             if eval_result.is_err() {
-                close_tile_popups(app, tile_id);
+                close_popups_for_tile(&app, &tile_id);
             }
         });
     });
@@ -626,13 +791,20 @@ pub fn report_tile_activity(app: AppHandle) {
     let _ = app.emit("tile-activity", ());
 }
 
-/// Force-closes any popup window(s) opened for `tile_id` via `handle_new_window`
-/// (labeled `"{tile_id}-popup-{n}"`), invoked from `popup_close_listener_script`
-/// once an SSO popup signals completion back to the opener. See that
-/// function's doc comment for why this bypasses wry's own close handling
-/// instead of relying on it.
+/// Invoked from `popup_close_listener_script` inside a tile's page once an
+/// SSO popup signals completion back to the opener. Takes no tile id from the
+/// page: a tile webview's label *is* its tile id (see `launch_tile`), so a
+/// page can only ever close its own popups.
 #[command]
-pub fn close_tile_popups(app: AppHandle, tile_id: String) {
+pub fn close_tile_popups(webview: tauri::Webview) {
+    close_popups_for_tile(webview.app_handle(), webview.label());
+}
+
+/// Force-closes any popup window(s) opened for `tile_id` via `handle_new_window`
+/// (labeled `"{tile_id}-popup-{n}"`). See `popup_close_listener_script`'s doc
+/// comment for why this bypasses wry's own close handling instead of relying
+/// on it.
+fn close_popups_for_tile(app: &AppHandle, tile_id: &str) {
     let prefix = format!("{tile_id}-popup-");
     for (label, window) in app.webview_windows() {
         if label.starts_with(&prefix) {
@@ -668,6 +840,7 @@ fn handle_new_window(
     tile_id: &str,
     allowed_domains: &[String],
     data_dir: &std::path::Path,
+    user_agent: Option<&'static str>,
     url: Url,
     features: tauri::webview::NewWindowFeatures,
 ) -> tauri::webview::NewWindowResponse<tauri::Wry> {
@@ -684,6 +857,7 @@ fn handle_new_window(
     let popup_tile_id = tile_id.to_string();
     let popup_app = app.clone();
     let popup_allowed_domains = allowed_domains.to_vec();
+    #[cfg(target_os = "macos")]
     let popup_label = label.clone();
     let mut builder =
         tauri::WebviewWindowBuilder::new(app, &label, WebviewUrl::External(url.clone()))
@@ -696,7 +870,11 @@ fn handle_new_window(
                     if let Some(host) = nav_url.host_str() {
                         record_blocked(&popup_app, &popup_tile_id, host);
                     }
-                } else if is_gsi_transform_relay(nav_url) {
+                }
+                // macOS only: see `popup_opener_shim_script` for why Windows
+                // doesn't need (and is broken by) the credential capture.
+                #[cfg(target_os = "macos")]
+                if allowed && is_gsi_transform_relay(nav_url) {
                     schedule_credential_capture(
                         popup_app.clone(),
                         popup_tile_id.clone(),
@@ -705,14 +883,19 @@ fn handle_new_window(
                 }
                 allowed
             });
-    builder = builder.initialization_script(popup_opener_shim_script());
-    #[cfg(debug_assertions)]
-    {
-        builder = builder.initialization_script(popup_diagnostic_logging_script());
-    }
     #[cfg(target_os = "macos")]
     {
-        builder = builder.user_agent(DESKTOP_SAFARI_USER_AGENT);
+        builder = builder.initialization_script(popup_opener_shim_script());
+        #[cfg(debug_assertions)]
+        {
+            builder = builder.initialization_script(popup_diagnostic_logging_script());
+        }
+    }
+    for script in tile_compat_scripts(user_agent) {
+        builder = builder.initialization_script(script);
+    }
+    if let Some(ua) = user_agent {
+        builder = builder.user_agent(ua);
     }
 
     match builder.build() {
@@ -802,6 +985,7 @@ fn launch_tile(
         let url = resume_url.unwrap_or_else(|| base_url.clone());
         let data_dir = app.path().app_data_dir()?.join("partitions").join(&tile.id);
         let allowed_domains = effective_allowed_domains(tile, &base_url);
+        let user_agent = tile_user_agent(&base_url);
 
         // TEMPORARY diagnostic logging for the Hulu/Amazon login-rejection
         // investigation — prints every navigation decision for a tile's
@@ -836,19 +1020,19 @@ fn launch_tile(
                     &popup_tile_id,
                     &popup_allowed_domains,
                     &popup_data_dir,
+                    user_agent,
                     url,
                     features,
                 )
             })
-            .initialization_script(popup_close_listener_script(&tile.id))
+            .initialization_script(popup_close_listener_script())
             .initialization_script(tile_activity_listener_script());
-        #[cfg(target_os = "macos")]
-        {
-            webview_builder = webview_builder.user_agent(DESKTOP_SAFARI_USER_AGENT);
-            eprintln!(
-                "[webview:{}] created with UA override: {DESKTOP_SAFARI_USER_AGENT}",
-                tile.id
-            );
+        for script in tile_compat_scripts(user_agent) {
+            webview_builder = webview_builder.initialization_script(script);
+        }
+        if let Some(ua) = user_agent {
+            webview_builder = webview_builder.user_agent(ua);
+            eprintln!("[webview:{}] created with UA override: {ua}", tile.id);
         }
         main_window.add_child(webview_builder.auto_resize(), position, size)?
     };
@@ -1111,6 +1295,7 @@ fn enter_pip_fallback(app: &AppHandle, tile: &AppTile) -> tauri::Result<()> {
     let url = resume_url.unwrap_or_else(|| base_url.clone());
     let data_dir = app.path().app_data_dir()?.join("partitions").join(&tile.id);
     let allowed_domains = effective_allowed_domains(tile, &base_url);
+    let user_agent = tile_user_agent(&base_url);
 
     let pip_tile_id = tile.id.clone();
     let nav_app = app.clone();
@@ -1135,18 +1320,21 @@ fn enter_pip_fallback(app: &AppHandle, tile: &AppTile) -> tauri::Result<()> {
                 &popup_tile_id,
                 &popup_allowed_domains,
                 &popup_data_dir,
+                user_agent,
                 url,
                 features,
             )
         });
-    #[cfg(target_os = "macos")]
-    {
-        webview_builder = webview_builder.user_agent(DESKTOP_SAFARI_USER_AGENT);
+    for script in tile_compat_scripts(user_agent) {
+        webview_builder = webview_builder.initialization_script(script);
+    }
+    if let Some(ua) = user_agent {
+        webview_builder = webview_builder.user_agent(ua);
     }
     let webview = pip_window.add_child(
         webview_builder
             .initialization_script(PIP_DRAG_STRIP_SCRIPT)
-            .initialization_script(popup_close_listener_script(&tile.id)),
+            .initialization_script(popup_close_listener_script()),
         PhysicalPosition::new(0, 0),
         pip_size,
     )?;
@@ -1397,6 +1585,50 @@ mod tests {
             allowed_domains: domains(allowed_domains),
             icon_slug: None,
         }
+    }
+
+    #[test]
+    fn client_hints_script_only_accompanies_the_chrome_user_agent() {
+        let has_hints = |ua| tile_compat_scripts(ua).contains(&CHROME_CLIENT_HINTS_SCRIPT);
+        assert!(has_hints(Some(DESKTOP_CHROME_USER_AGENT)));
+        assert!(!has_hints(Some("Mozilla/5.0 (Macintosh)")));
+        assert!(!has_hints(None));
+    }
+
+    /// `capabilities/tile-remote.json` has to match every URL a tile page
+    /// can be on, or its injected scripts' `invoke`s are silently rejected.
+    #[test]
+    fn tile_remote_capability_matches_tile_urls() {
+        use tauri::utils::acl::capability::Capability;
+        let capability: Capability =
+            serde_json::from_str(include_str!("../capabilities/tile-remote.json")).unwrap();
+        let urls = capability
+            .remote
+            .expect("tile-remote needs a remote block")
+            .urls;
+        let matches = |u: &str| {
+            let url = Url::parse(u).unwrap();
+            urls.iter().any(|p| {
+                p.parse::<tauri::utils::acl::RemoteUrlPattern>()
+                    .unwrap()
+                    .test(&url)
+            })
+        };
+        assert!(matches("https://www.netflix.com/browse"));
+        assert!(matches("https://espn.com/watch/?q=1#x"));
+        assert!(matches("http://192.168.50.50:8096/web/#/home"));
+        assert!(matches("https://jellyfin.local:8920/"));
+        assert!(!matches("tauri://localhost/"));
+    }
+
+    #[test]
+    fn chrome_user_agent_applies_to_espn_hosts_only() {
+        let wants = |u: &str| wants_chrome_user_agent(&Url::parse(u).unwrap());
+        assert!(wants("https://www.espn.com/"));
+        assert!(wants("https://espn.com/watch/"));
+        assert!(!wants("https://www.netflix.com/"));
+        assert!(!wants("https://espn.com.evil.tld/"));
+        assert!(!wants("https://notespn.com/"));
     }
 
     #[test]

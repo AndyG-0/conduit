@@ -78,6 +78,38 @@ fn slugify(name: &str) -> String {
     slug.trim_matches('-').to_string()
 }
 
+/// ESPN's streaming landing page — the bare `www.espn.com` home page is the
+/// sports-news site, not the watch experience a TV launcher tile should open.
+const ESPN_BASE_URL: &str = "https://espn.com/watch/";
+
+/// Seeded base URLs that were later corrected in `default_seed`, as
+/// `(tile id, old base_url)`. `registry.json` persists the seed on first run,
+/// so a corrected default never reaches an existing install on its own;
+/// `migrate_seed_urls` rewrites a tile still on its old default to the
+/// current one. Only an exact match is rewritten — a URL the user edited
+/// themselves is left alone.
+const CORRECTED_SEED_URLS: &[(&str, &str)] = &[("espn", "https://www.espn.com/")];
+
+/// Applies `CORRECTED_SEED_URLS` in place. Returns `true` if any tile changed
+/// (i.e. `registry.json` needs re-saving).
+fn migrate_seed_urls(tiles: &mut [AppTile]) -> bool {
+    let seed = default_seed();
+    let mut changed = false;
+    for tile in tiles.iter_mut() {
+        let corrected = CORRECTED_SEED_URLS
+            .iter()
+            .any(|(id, old_url)| tile.id == *id && tile.base_url == *old_url);
+        if !corrected {
+            continue;
+        }
+        if let Some(current) = seed.iter().find(|t| t.id == tile.id) {
+            tile.base_url = current.base_url.clone();
+            changed = true;
+        }
+    }
+    changed
+}
+
 /// The curated set of streaming services shipped by default. Real base
 /// URLs and allowed domains as of writing; a user hitting an SSO domain
 /// not covered here (or by `crate::webview::COMMON_SSO_DOMAINS`) can add it
@@ -139,7 +171,7 @@ pub fn default_seed() -> Vec<AppTile> {
         tile(
             "espn",
             "ESPN",
-            "https://www.espn.com/",
+            ESPN_BASE_URL,
             &[
                 "espn.com",
                 "plus.espn.com",
@@ -252,13 +284,15 @@ impl Registry {
         let path = registry_path(app)?;
         let (tiles, needs_resave) = match fs::read_to_string(&path) {
             Ok(contents) => {
-                let tiles: Vec<AppTile> =
+                let mut tiles: Vec<AppTile> =
                     serde_json::from_str(&contents).unwrap_or_else(|_| default_seed());
+                let urls_migrated = migrate_seed_urls(&mut tiles);
                 // Same one-time migration as `Preferences::load` for
                 // installs from before secrets moved to the OS keychain:
                 // `registry.json` used to hold each tile's `jellyfin_api_key`
                 // as plaintext.
-                (tiles, migrate_legacy_jellyfin_keys(&contents))
+                let keys_migrated = migrate_legacy_jellyfin_keys(&contents);
+                (tiles, urls_migrated || keys_migrated)
             }
             Err(_) => {
                 let seed = default_seed();
@@ -517,6 +551,33 @@ mod tests {
         ids.sort_unstable();
         ids.dedup();
         assert_eq!(ids.len(), count, "default_seed has duplicate ids");
+    }
+
+    #[test]
+    fn migrate_seed_urls_updates_old_espn_default() {
+        let mut tiles = default_seed();
+        let espn = tiles.iter_mut().find(|t| t.id == "espn").unwrap();
+        espn.base_url = "https://www.espn.com/".into();
+        assert!(migrate_seed_urls(&mut tiles));
+        let espn = tiles.iter().find(|t| t.id == "espn").unwrap();
+        assert_eq!(espn.base_url, ESPN_BASE_URL);
+    }
+
+    #[test]
+    fn migrate_seed_urls_leaves_user_edited_urls_alone() {
+        let mut tiles = default_seed();
+        let espn = tiles.iter_mut().find(|t| t.id == "espn").unwrap();
+        espn.base_url = "https://www.espn.com/nfl/".into();
+        assert!(!migrate_seed_urls(&mut tiles));
+        let espn = tiles.iter().find(|t| t.id == "espn").unwrap();
+        assert_eq!(espn.base_url, "https://www.espn.com/nfl/");
+    }
+
+    #[test]
+    fn migrate_seed_urls_is_a_no_op_on_a_fresh_seed() {
+        let mut tiles = default_seed();
+        assert!(!migrate_seed_urls(&mut tiles));
+        assert_eq!(tiles, default_seed());
     }
 
     #[test]
