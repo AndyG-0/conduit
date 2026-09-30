@@ -7,6 +7,8 @@ import {
 import { renderGrid, focusGrid, hideTileBanner } from "./main";
 import { applyTheme } from "./theme";
 import { preferencesApi, tilesApi } from "./api-client";
+import { refreshTrendingCatalog } from "./trending";
+import { refreshJellyfinBanner } from "./jellyfin";
 import type { AppTileInput, AppTileView, ThemeSetting } from "@conduit/shared";
 
 const grid = document.querySelector<HTMLElement>("#grid")!;
@@ -245,6 +247,7 @@ async function renderSettings(editingId: string | null = null): Promise<void> {
       tmdbKeyError.hidden = true;
       try {
         await preferencesApi.setTmdbApiKey(apiKey);
+        void refreshTrendingCatalog(() => {});
         // Never keep displaying the saved key in the field, plaintext or
         // otherwise — clear it back to a placeholder once it's persisted.
         input.value = "";
@@ -298,7 +301,7 @@ async function renderSettings(editingId: string | null = null): Promise<void> {
       const input = readForm(form);
       const jellyfinApiKey = readJellyfinApiKey(form);
       try {
-        const saved = editing
+        let saved = editing
           ? await tilesApi.update(editing.id, input)
           : await tilesApi.create(input);
         // Decoupled from create/update: the tile-CRUD calls never see the
@@ -306,7 +309,12 @@ async function renderSettings(editingId: string | null = null): Promise<void> {
         // tile (and its id, for a new tile) exists.
         if (jellyfinApiKey) {
           await tilesApi.setJellyfinKey(saved.id, jellyfinApiKey);
+          saved = { ...saved, jellyfin_api_key_set: true };
         }
+        // Re-fetch the just-saved tile's banner immediately rather than
+        // waiting for the next reload, so adding/editing a Jellyfin key
+        // takes effect right away.
+        void refreshJellyfinBanner(saved, () => {});
         await renderSettings();
       } catch (err) {
         errorEl.textContent = String(err);

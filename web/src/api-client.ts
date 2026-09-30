@@ -4,6 +4,7 @@ import type {
   AuthStatus,
   Preferences,
   ThemeSetting,
+  TrendingBanner,
 } from "@conduit/shared";
 
 export class ApiError extends Error {
@@ -92,3 +93,13 @@ export const preferencesApi = {
 export function faviconProxyUrl(tileId: string): string {
   return `/api/proxy/favicon?tileId=${encodeURIComponent(tileId)}`;
 }
+
+export const proxyApi = {
+  trending: () =>
+    request<Record<string, TrendingBanner>>("GET", "/api/proxy/trending"),
+  jellyfinBanner: (tileId: string) =>
+    request<TrendingBanner | null>(
+      "GET",
+      `/api/proxy/jellyfin/${encodeURIComponent(tileId)}`,
+    ),
+};

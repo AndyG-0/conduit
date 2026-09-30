@@ -11,6 +11,12 @@ import { startGamepadPolling } from "./gamepad";
 import { applyCachedTheme, applyTheme } from "./theme";
 import { authApi, preferencesApi, tilesApi, UNAUTHENTICATED_EVENT } from "./api-client";
 import { renderAuthView } from "./auth-view";
+import {
+  fallbackGradient,
+  refreshTrendingCatalog,
+  trendingFor,
+} from "./trending";
+import { refreshAllJellyfinBanners } from "./jellyfin";
 import type { AppTileView } from "@conduit/shared";
 
 applyCachedTheme();
@@ -40,9 +46,6 @@ const tileBannerName =
 const tileBannerTrending = tileBanner.querySelector<HTMLElement>(
   ".tile-banner-trending",
 )!;
-// No TMDB trending integration yet (deferred to Phase 5) — the banner only
-// ever shows a generated brand-color gradient with no trending text.
-tileBannerTrending.hidden = true;
 
 // Set by `renderGrid()`; cached so the focus/hover banner can look a tile's
 // name and icon up synchronously instead of re-fetching the tile list.
@@ -90,22 +93,29 @@ function escapeHtml(s: string): string {
   );
 }
 
-function setTileBannerArt(name: string): void {
-  tileBannerBackdrop.hidden = true;
-  tileBannerBackdrop.removeAttribute("src");
-  tileBannerArt.style.background = fallbackGradient(name);
-}
-
-/** Deterministic brand-color-ish gradient for a tile with no trending art —
- * every tile gets one (not just custom ones) since Phase 5's TMDB
- * integration isn't wired up yet. */
-function fallbackGradient(seed: string): string {
-  let hash = 0;
-  for (let i = 0; i < seed.length; i++) {
-    hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+/**
+ * Fills in the hero band's backdrop art + trending-titles line: real TMDB/
+ * Jellyfin artwork/titles when `trendingFor` has an entry for this tile,
+ * otherwise a generated brand-color gradient with no trending text, same as
+ * a plain custom tile or the Settings/Help pseudo-tiles get.
+ */
+function setTileBannerArt(
+  banner: ReturnType<typeof trendingFor>,
+  name: string,
+): void {
+  if (banner) {
+    tileBannerArt.style.background = "";
+    tileBannerBackdrop.src = banner.backdrop_url;
+    tileBannerBackdrop.hidden = false;
+    tileBannerTrending.textContent = `Trending now: ${banner.titles.join(" · ")}`;
+    tileBannerTrending.hidden = banner.titles.length === 0;
+  } else {
+    tileBannerBackdrop.hidden = true;
+    tileBannerBackdrop.removeAttribute("src");
+    tileBannerArt.style.background = fallbackGradient(name);
+    tileBannerTrending.textContent = "";
+    tileBannerTrending.hidden = true;
   }
-  const hue = hash % 360;
-  return `linear-gradient(135deg, hsl(${hue} 70% 22%), hsl(${(hue + 40) % 360} 70% 12%))`;
 }
 
 /** Shows the given tile's name/icon/trending artwork in the top hero banner. */
@@ -117,12 +127,12 @@ function updateTileBanner(tileEl: HTMLElement): void {
     tileBannerIcon.innerHTML = gearIcon();
     tileBannerIcon.classList.remove("is-fixed-canvas");
     tileBannerName.textContent = "Settings";
-    setTileBannerArt("Settings");
+    setTileBannerArt(null, "Settings");
   } else if (id === "__help__") {
     tileBannerIcon.innerHTML = helpIcon();
     tileBannerIcon.classList.remove("is-fixed-canvas");
     tileBannerName.textContent = "Help";
-    setTileBannerArt("Help");
+    setTileBannerArt(null, "Help");
   } else {
     const tile = currentTiles.find((t) => t.id === id);
     if (!tile) return;
@@ -137,7 +147,7 @@ function updateTileBanner(tileEl: HTMLElement): void {
       isFixedCanvasIcon(tile.icon_slug),
     );
     tileBannerName.textContent = tile.name;
-    setTileBannerArt(tile.name);
+    setTileBannerArt(trendingFor(tile.id), tile.name);
   }
 
   tileBanner.classList.add("is-visible");
@@ -627,7 +637,14 @@ function toggleFullscreen(): void {
 
 function startApp(): void {
   grid.hidden = false;
-  void renderGrid();
+  void renderGrid().then(() =>
+    refreshAllJellyfinBanners(currentTiles, () => {
+      const active = document.activeElement;
+      if (active instanceof HTMLElement && active.classList.contains("tile")) {
+        updateTileBanner(active);
+      }
+    }),
+  );
   void preferencesApi.get().then((preferences) => {
     applyTheme(preferences.theme);
   });
@@ -721,6 +738,16 @@ function startApp(): void {
       } else if (!editMode) {
         moveFocus(direction);
       }
+    }
+  });
+
+  // Fire-and-forget: fetched once per session, cached in `trending.ts`. If
+  // it lands after the user's already hovering/focused a tile, refresh that
+  // tile's banner so it doesn't wait for the next hover/focus change.
+  void refreshTrendingCatalog(() => {
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && active.classList.contains("tile")) {
+      updateTileBanner(active);
     }
   });
 }

@@ -43,7 +43,7 @@ export function createApp(dataDir: string = DATA_DIR): Express {
     requireAuth(secrets),
     createPreferencesRouter(dataDir, preferences, secrets),
   );
-  app.use("/api/proxy", requireAuth(secrets), createProxyRouter(registry));
+  app.use("/api/proxy", requireAuth(secrets), createProxyRouter(registry, secrets));
 
   if (fs.existsSync(WEB_DIST_DIR)) {
     app.use(express.static(WEB_DIST_DIR));

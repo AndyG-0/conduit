@@ -1,6 +1,9 @@
 import { Router } from "express";
 import type { Registry } from "../lib/registry.js";
+import type { SecretsFile } from "../lib/secrets.js";
 import { fetchFavicon } from "../lib/favicon.js";
+import { fetchTrendingCatalog } from "../lib/tmdb.js";
+import { fetchJellyfinBanner } from "../lib/jellyfin-banner.js";
 
 /**
  * Proxy endpoints that fetch third-party data server-side so the browser
@@ -9,7 +12,7 @@ import { fetchFavicon } from "../lib/favicon.js";
  * because it needs a secret (TMDB/Jellyfin API keys) that must never reach
  * the client.
  */
-export function createProxyRouter(registry: Registry): Router {
+export function createProxyRouter(registry: Registry, secrets: SecretsFile): Router {
   const router = Router();
 
   router.get("/favicon", async (req, res) => {
@@ -31,14 +34,29 @@ export function createProxyRouter(registry: Registry): Router {
     res.send(favicon.body);
   });
 
-  // TMDB trending banners and Jellyfin library data are Phase 5 stretch
-  // work (screensaver/trending parity) — not required for MVP.
-  router.get("/trending", (_req, res) => {
-    res.status(501).json({ error: "not yet implemented" });
+  router.get("/trending", async (_req, res) => {
+    if (!secrets.tmdbApiKey) {
+      res.json({});
+      return;
+    }
+    res.json(await fetchTrendingCatalog(secrets.tmdbApiKey));
   });
 
-  router.get("/jellyfin/:tileId", (_req, res) => {
-    res.status(501).json({ error: "not yet implemented" });
+  router.get("/jellyfin/:tileId", async (req, res) => {
+    const { tileId } = req.params;
+    const tile = registry.get(tileId);
+    if (!tile) {
+      res.status(404).json({ error: `no tile with id ${tileId}` });
+      return;
+    }
+
+    const apiKey = secrets.jellyfin[tileId];
+    if (!apiKey) {
+      res.json(null);
+      return;
+    }
+
+    res.json(await fetchJellyfinBanner(tile.base_url, apiKey));
   });
 
   return router;

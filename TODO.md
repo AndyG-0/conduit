@@ -93,3 +93,45 @@ Windows work starts (item 8) and is worth revisiting then.
 Cutting the actual first tagged release is still a deliberate manual step
 for whenever the maintainer decides it's ready — see `CONTRIBUTING.md` for
 the exact steps (`scripts/release.sh`).
+
+## PWA (browser + self-hosted backend)
+
+A second, coexisting surface (`server/`, `web/`, `shared/`) alongside the
+native app — see `ARCHITECTURE.md`'s client-server/PWA alternative writeup
+for the design rationale and [`DEPLOYMENT.md`](DEPLOYMENT.md) for how to run
+it. Kept separate from the numbered list above since it's an independent
+build track with its own open items. Workspace scaffolding, the Express
+backend (registry/auth/tiles/preferences/favicon-proxy with SSRF guarding),
+the frontend rewrite, and the Docker/Caddy deployment are done and verified
+(`pnpm -r test` passes across `shared`/`web`/`server`; the Docker image and
+compose stack have been built and run end-to-end).
+
+### 15. Screensaver parity — optional, deferred
+
+TMDB/Jellyfin hero-banner parity is done: `server/src/lib/tmdb.ts` and
+`server/src/lib/jellyfin-banner.ts` back real implementations of
+`GET /api/proxy/trending` and `GET /api/proxy/jellyfin/:tileId`, and
+`web/src/trending.ts` / `web/src/jellyfin.ts` port the native app's
+`trending.ts`/`jellyfin.ts` to consume them — the hero banner shows real
+trending artwork/titles and Jellyfin "recently added" art in the PWA exactly
+as it does natively.
+
+`screensaver.ts` (the Apple Aerial video screensaver) is still not ported —
+it depends on native-only concepts (fullscreen state, gamepad polling, a
+separate native tile webview's activity-relay events) that don't have a PWA
+equivalent yet. Out of scope for this work; pick up separately if wanted.
+
+### 16. Real-device verification — not yet done
+
+Everything below needs an actual browser/mobile device on a LAN, which isn't
+available in a dev sandbox:
+- Caddy's internal-CA cert trust flow and PWA install ("Add to Home Screen")
+  on a second LAN device.
+- Tile launch → same-tab navigation → browser Back returns to a working
+  grid, against at least two real streaming sites (SPA history depth varies
+  per site).
+- Fullscreen survives a Back-navigation round trip.
+- Favicon proxy actually renders in a browser's Network tab (only
+  curl/server-side-tested so far).
+- A custom tile added through Settings persists across a real container
+  restart (persistence logic is unit-tested; an actual restart wasn't).

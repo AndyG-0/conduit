@@ -142,4 +142,42 @@ describe("createApp", () => {
     const res = await agent.get("/api/proxy/favicon?tileId=does-not-exist");
     expect(res.status).toBe(404);
   });
+
+  it("returns an empty trending catalog when no TMDB key is set", async () => {
+    const app = createApp(dataDir);
+    const agent = request.agent(app);
+    await agent.post("/api/auth/setup").send({ passphrase: "correct horse battery staple" });
+
+    const res = await agent.get("/api/proxy/trending");
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({});
+  });
+
+  it("returns 404 from the jellyfin proxy for an unknown tile", async () => {
+    const app = createApp(dataDir);
+    const agent = request.agent(app);
+    await agent.post("/api/auth/setup").send({ passphrase: "correct horse battery staple" });
+
+    const res = await agent.get("/api/proxy/jellyfin/does-not-exist");
+    expect(res.status).toBe(404);
+  });
+
+  it("returns null from the jellyfin proxy for a tile with no key set", async () => {
+    const app = createApp(dataDir);
+    const agent = request.agent(app);
+    await agent.post("/api/auth/setup").send({ passphrase: "correct horse battery staple" });
+
+    const tiles = await agent.get("/api/tiles");
+    const tileId = tiles.body[0].id;
+
+    const res = await agent.get(`/api/proxy/jellyfin/${tileId}`);
+    expect(res.status).toBe(200);
+    expect(res.body).toBeNull();
+  });
+
+  it("rejects unauthenticated access to the proxy routes", async () => {
+    const app = createApp(dataDir);
+    const res = await request(app).get("/api/proxy/trending");
+    expect(res.status).toBe(401);
+  });
 });

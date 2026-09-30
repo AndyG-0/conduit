@@ -51,7 +51,7 @@ export interface SafeFetchResult {
  * caps the response body size. */
 export async function safeFetch(
   targetUrl: string,
-  options: { timeoutMs?: number } = {},
+  options: { timeoutMs?: number; headers?: Record<string, string> } = {},
 ): Promise<SafeFetchResult> {
   const url = new URL(targetUrl);
   await assertSafeTarget(url);
@@ -65,6 +65,7 @@ export async function safeFetch(
     const response = await fetch(url, {
       signal: controller.signal,
       redirect: "follow",
+      headers: options.headers,
     });
 
     // A redirect could land on a different host than the one just checked
