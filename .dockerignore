@@ -1,0 +1,9 @@
+**/node_modules
+**/dist
+server/data
+src-tauri
+src
+target
+.git
+.claude
+*.log

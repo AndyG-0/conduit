@@ -1,0 +1,10 @@
+# Replace `conduit.local` with whatever hostname you'll actually use on your
+# LAN (see DEPLOYMENT.md). `tls internal` makes Caddy mint certs from its own
+# local CA — there's no real domain to get a public cert for here, and a
+# secure context (valid HTTPS, even from a locally-trusted CA) is required
+# for the manifest/service-worker to make the PWA installable at all.
+conduit.local {
+	tls internal
+
+	reverse_proxy server:8080
+}
