@@ -132,7 +132,7 @@ const DESKTOP_SAFARI_USER_AGENT: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 
 /// Same "a version or two behind is fine" reasoning as
 /// `DESKTOP_SAFARI_USER_AGENT`; bump by hand if a site starts rejecting it.
 const DESKTOP_CHROME_USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) \
-    AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36";
+    AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36";
 
 /// Sites (matched against a tile's `base_url` host, suffix-matched like
 /// `domain_allowed`) that get `DESKTOP_CHROME_USER_AGENT` on Windows. Keyed on
@@ -192,12 +192,6 @@ const CHROME_CLIENT_HINTS_SCRIPT: &str = r#"(() => {
   }
 })();"#;
 
-/// The page script that accompanies a UA override, if that override needs
-/// one to be consistent (see `CHROME_CLIENT_HINTS_SCRIPT`).
-fn user_agent_script(user_agent: &str) -> Option<&'static str> {
-    (user_agent == DESKTOP_CHROME_USER_AGENT).then_some(CHROME_CLIENT_HINTS_SCRIPT)
-}
-
 /// Hides WebView2's `window.chrome.webview` from tile pages. Prime Video's
 /// web client (`DVWebClient_app`) checks whether `chrome.webview` exists
 /// during startup, most likely to detect Amazon's own WebView2-based Windows
@@ -215,6 +209,11 @@ fn user_agent_script(user_agent: &str) -> Option<&'static str> {
 /// Tauri's `sendIpcMessage` (tauri `scripts/ipc-protocol.js`). So the
 /// property becomes a getter that returns the real object only when that
 /// function is on the call stack, and `undefined` for page code.
+///
+/// This is a compatibility shim, not a security boundary: a page can get the
+/// real object back by naming its own function `sendIpcMessage`. What a page
+/// can reach over IPC is decided by the capabilities
+/// (`capabilities/tile-remote.json`), not by hiding this.
 #[cfg(windows)]
 const HIDE_CHROME_WEBVIEW_SCRIPT: &str = r#"(() => {
   const chrome = window.chrome;
@@ -239,6 +238,21 @@ const HIDE_CHROME_WEBVIEW_SCRIPT: &str = r#"(() => {
     console.info('[conduit:webview] chrome.webview hidden:', window.chrome.webview === undefined);
   }
 })();"#;
+
+/// Site-compatibility init scripts for every webview belonging to a tile
+/// (the tile itself, its PiP copy, and its sign-in popups), given that
+/// tile's `tile_user_agent`: `HIDE_CHROME_WEBVIEW_SCRIPT` on Windows, plus
+/// `CHROME_CLIENT_HINTS_SCRIPT` when the tile claims to be Chrome so the
+/// Client Hints agree with the UA string.
+fn tile_compat_scripts(user_agent: Option<&str>) -> Vec<&'static str> {
+    let mut scripts = Vec::new();
+    #[cfg(windows)]
+    scripts.push(HIDE_CHROME_WEBVIEW_SCRIPT);
+    if user_agent == Some(DESKTOP_CHROME_USER_AGENT) {
+        scripts.push(CHROME_CLIENT_HINTS_SCRIPT);
+    }
+    scripts
+}
 
 /// The UA override (if any) for every webview belonging to the tile at
 /// `base_url`: the tile itself, its PiP copy, and its sign-in popups.
@@ -335,32 +349,24 @@ fn next_popup_label(tile_id: &str) -> String {
 /// provider) happens to serve the relay page from — no need to hardcode or
 /// guess that host up front the way an origin allowlist would.
 ///
-/// TEMPORARY: also `console.log`s every message's origin, and forwards that
-/// same line through the `debug_log` command (see `lib.rs`) so it lands in
-/// the `conduit-debug.log` debug file too, not just the opener's own devtools console
-/// (easy to miss if devtools isn't already open at the right moment). Remove
-/// once the credential hand-off (`popup_credential_capture_script`) is
-/// confirmed working end-to-end.
-fn popup_close_listener_script(tile_id: &str) -> String {
-    format!(
-        r#"(() => {{
+/// The tile page is a remote origin, so this `invoke` only works because
+/// `capabilities/tile-remote.json` grants it `close_tile_popups`, which takes
+/// no arguments: the tile is whichever webview called it.
+fn popup_close_listener_script() -> &'static str {
+    r#"(() => {
   const openedWindows = new Set();
   const nativeOpen = window.open;
-  window.open = function (...args) {{
+  window.open = function (...args) {
     const win = nativeOpen.apply(window, args);
     if (win) openedWindows.add(win);
     return win;
-  }};
-  window.addEventListener('message', (event) => {{
-    const line = '[conduit:popup-message] origin=' + event.origin + ' fromOpenedPopup=' + openedWindows.has(event.source);
-    console.log(line);
-    window.__TAURI__.core.invoke('debug_log', {{ msg: line }}).catch(() => {{}});
-    if (openedWindows.has(event.source)) {{
-      window.__TAURI__.core.invoke('close_tile_popups', {{ tileId: {tile_id:?} }}).catch(() => {{}});
-    }}
-  }});
-}})();"#
-    )
+  };
+  window.addEventListener('message', (event) => {
+    if (openedWindows.has(event.source)) {
+      window.__TAURI__.core.invoke('close_tile_popups').catch(() => {});
+    }
+  });
+})();"#
 }
 
 /// Relays user activity from inside a tile's own webview back to Rust, so
@@ -757,7 +763,7 @@ fn schedule_credential_capture(app: AppHandle, tile_id: String, popup_label: Str
         std::thread::sleep(std::time::Duration::from_millis(1500));
         let _ = app.clone().run_on_main_thread(move || {
             let Some(popup) = app.get_webview(&popup_label) else {
-                close_tile_popups(app, tile_id);
+                close_popups_for_tile(&app, &tile_id);
                 return;
             };
             let capture_app = app.clone();
@@ -765,10 +771,10 @@ fn schedule_credential_capture(app: AppHandle, tile_id: String, popup_label: Str
             let eval_result =
                 popup.eval_with_callback("JSON.stringify(window.__conduit || {})", move |result| {
                     handle_captured_credential(&capture_app, &capture_tile_id, &result);
-                    close_tile_popups(capture_app.clone(), capture_tile_id.clone());
+                    close_popups_for_tile(&capture_app, &capture_tile_id);
                 });
             if eval_result.is_err() {
-                close_tile_popups(app, tile_id);
+                close_popups_for_tile(&app, &tile_id);
             }
         });
     });
@@ -785,13 +791,20 @@ pub fn report_tile_activity(app: AppHandle) {
     let _ = app.emit("tile-activity", ());
 }
 
-/// Force-closes any popup window(s) opened for `tile_id` via `handle_new_window`
-/// (labeled `"{tile_id}-popup-{n}"`), invoked from `popup_close_listener_script`
-/// once an SSO popup signals completion back to the opener. See that
-/// function's doc comment for why this bypasses wry's own close handling
-/// instead of relying on it.
+/// Invoked from `popup_close_listener_script` inside a tile's page once an
+/// SSO popup signals completion back to the opener. Takes no tile id from the
+/// page: a tile webview's label *is* its tile id (see `launch_tile`), so a
+/// page can only ever close its own popups.
 #[command]
-pub fn close_tile_popups(app: AppHandle, tile_id: String) {
+pub fn close_tile_popups(webview: tauri::Webview) {
+    close_popups_for_tile(webview.app_handle(), webview.label());
+}
+
+/// Force-closes any popup window(s) opened for `tile_id` via `handle_new_window`
+/// (labeled `"{tile_id}-popup-{n}"`). See `popup_close_listener_script`'s doc
+/// comment for why this bypasses wry's own close handling instead of relying
+/// on it.
+fn close_popups_for_tile(app: &AppHandle, tile_id: &str) {
     let prefix = format!("{tile_id}-popup-");
     for (label, window) in app.webview_windows() {
         if label.starts_with(&prefix) {
@@ -878,15 +891,11 @@ fn handle_new_window(
             builder = builder.initialization_script(popup_diagnostic_logging_script());
         }
     }
-    #[cfg(windows)]
-    {
-        builder = builder.initialization_script(HIDE_CHROME_WEBVIEW_SCRIPT);
+    for script in tile_compat_scripts(user_agent) {
+        builder = builder.initialization_script(script);
     }
     if let Some(ua) = user_agent {
         builder = builder.user_agent(ua);
-        if let Some(script) = user_agent_script(ua) {
-            builder = builder.initialization_script(script);
-        }
     }
 
     match builder.build() {
@@ -1016,17 +1025,13 @@ fn launch_tile(
                     features,
                 )
             })
-            .initialization_script(popup_close_listener_script(&tile.id))
+            .initialization_script(popup_close_listener_script())
             .initialization_script(tile_activity_listener_script());
-        #[cfg(windows)]
-        {
-            webview_builder = webview_builder.initialization_script(HIDE_CHROME_WEBVIEW_SCRIPT);
+        for script in tile_compat_scripts(user_agent) {
+            webview_builder = webview_builder.initialization_script(script);
         }
         if let Some(ua) = user_agent {
             webview_builder = webview_builder.user_agent(ua);
-            if let Some(script) = user_agent_script(ua) {
-                webview_builder = webview_builder.initialization_script(script);
-            }
             eprintln!("[webview:{}] created with UA override: {ua}", tile.id);
         }
         main_window.add_child(webview_builder.auto_resize(), position, size)?
@@ -1320,20 +1325,16 @@ fn enter_pip_fallback(app: &AppHandle, tile: &AppTile) -> tauri::Result<()> {
                 features,
             )
         });
-    #[cfg(windows)]
-    {
-        webview_builder = webview_builder.initialization_script(HIDE_CHROME_WEBVIEW_SCRIPT);
+    for script in tile_compat_scripts(user_agent) {
+        webview_builder = webview_builder.initialization_script(script);
     }
     if let Some(ua) = user_agent {
         webview_builder = webview_builder.user_agent(ua);
-        if let Some(script) = user_agent_script(ua) {
-            webview_builder = webview_builder.initialization_script(script);
-        }
     }
     let webview = pip_window.add_child(
         webview_builder
             .initialization_script(PIP_DRAG_STRIP_SCRIPT)
-            .initialization_script(popup_close_listener_script(&tile.id)),
+            .initialization_script(popup_close_listener_script()),
         PhysicalPosition::new(0, 0),
         pip_size,
     )?;
@@ -1584,6 +1585,40 @@ mod tests {
             allowed_domains: domains(allowed_domains),
             icon_slug: None,
         }
+    }
+
+    #[test]
+    fn client_hints_script_only_accompanies_the_chrome_user_agent() {
+        let has_hints = |ua| tile_compat_scripts(ua).contains(&CHROME_CLIENT_HINTS_SCRIPT);
+        assert!(has_hints(Some(DESKTOP_CHROME_USER_AGENT)));
+        assert!(!has_hints(Some("Mozilla/5.0 (Macintosh)")));
+        assert!(!has_hints(None));
+    }
+
+    /// `capabilities/tile-remote.json` has to match every URL a tile page
+    /// can be on, or its injected scripts' `invoke`s are silently rejected.
+    #[test]
+    fn tile_remote_capability_matches_tile_urls() {
+        use tauri::utils::acl::capability::Capability;
+        let capability: Capability =
+            serde_json::from_str(include_str!("../capabilities/tile-remote.json")).unwrap();
+        let urls = capability
+            .remote
+            .expect("tile-remote needs a remote block")
+            .urls;
+        let matches = |u: &str| {
+            let url = Url::parse(u).unwrap();
+            urls.iter().any(|p| {
+                p.parse::<tauri::utils::acl::RemoteUrlPattern>()
+                    .unwrap()
+                    .test(&url)
+            })
+        };
+        assert!(matches("https://www.netflix.com/browse"));
+        assert!(matches("https://espn.com/watch/?q=1#x"));
+        assert!(matches("http://192.168.50.50:8096/web/#/home"));
+        assert!(matches("https://jellyfin.local:8920/"));
+        assert!(!matches("tauri://localhost/"));
     }
 
     #[test]

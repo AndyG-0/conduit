@@ -99,7 +99,16 @@ to stay in sync (`package.json`, `src-tauri/Cargo.toml`,
 `src-tauri/tauri.conf.json`), updates `CHANGELOG.md`, then
 commits/tags/pushes behind two separate confirmation gates (one before the
 local commit/tag, one immediately before the push, since pushing the tag
-is what triggers `.github/workflows/release.yml`).
+is what triggers `.github/workflows/release.yml`). That workflow builds
+macOS and Windows in parallel and publishes one GitHub Release once both
+succeed. If either build fails, nothing is published, so fix it and re-push
+the tag.
+
+To check both installers before tagging, run the Release workflow by hand
+(Actions > Release > Run workflow) on your branch. It builds and uploads
+both platforms' bundles as workflow artifacts and skips publishing.
+
+Cut releases from macOS, or from Git Bash on Windows (the script is bash).
 
 ## Scope
 

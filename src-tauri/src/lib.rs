@@ -21,22 +21,34 @@ use tauri_plugin_autostart::MacosLauncher;
 // event traces to a fixed file, since there's no way to read the webview's
 // own devtools console remotely and stdout isn't reliably capturable
 // regardless of how the dev server was launched. Remove once the drag bug is
-// fixed.
+// fixed. A no-op in release builds, like `webview.rs`'s `append_debug_log`,
+// so a shipped build never writes this file. Still registered there so the
+// command list stays the same in every profile (see `COMMANDS` in
+// `build.rs`).
 #[tauri::command]
 fn debug_log(msg: String) {
-    use std::io::Write;
-    if let Ok(mut f) = std::fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(debug_log_path())
+    #[cfg(debug_assertions)]
     {
-        let _ = writeln!(f, "[js-debug] {msg}");
+        use std::io::Write;
+        if let Ok(mut f) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(debug_log_path())
+        {
+            let _ = writeln!(f, "[js-debug] {msg}");
+        }
+    }
+    #[cfg(not(debug_assertions))]
+    {
+        let _ = msg;
     }
 }
 
-/// Where `debug_log` (and `webview.rs`'s native-side equivalent) append to:
+/// Where `debug_log` (and `webview.rs`'s native-side equivalent) append to in
+/// debug builds:
 /// `/tmp/conduit-debug.log` on macOS, `%TEMP%\conduit-debug.log` on Windows,
 /// which has no `/tmp`.
+#[cfg(debug_assertions)]
 pub(crate) fn debug_log_path() -> std::path::PathBuf {
     if cfg!(windows) {
         std::env::temp_dir().join("conduit-debug.log")

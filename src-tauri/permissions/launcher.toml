@@ -1,0 +1,47 @@
+# Every app command, for the launcher page itself (`capabilities/default.json`).
+# Keep in sync with `COMMANDS` in `build.rs`.
+[[set]]
+identifier = "launcher"
+description = "All of Conduit's own commands, for the bundled launcher page."
+permissions = [
+  "allow-debug-log",
+  "allow-toggle-fullscreen",
+  "allow-launch-app",
+  "allow-return-to-grid",
+  "allow-refresh-active-tile",
+  "allow-toggle-pip-command",
+  "allow-report-native-pip-unavailable",
+  "allow-navigate-active-tile-back",
+  "allow-navigate-active-tile-forward",
+  "allow-navigate-active-tile-home",
+  "allow-list-blocked-domains",
+  "allow-dismiss-blocked-domain",
+  "allow-close-tile-popups",
+  "allow-report-tile-activity",
+  "allow-is-fullscreen",
+  "allow-list-apps",
+  "allow-create-app",
+  "allow-update-app",
+  "allow-delete-app",
+  "allow-reorder-apps",
+  "allow-fetch-favicon",
+  "allow-fetch-jellyfin-banner",
+  "allow-set-jellyfin-api-key",
+  "allow-get-preferences",
+  "allow-set-screensaver-enabled",
+  "allow-set-theme",
+  "allow-set-tmdb-api-key",
+  "allow-fetch-aerial-catalog",
+  "allow-enter-screensaver",
+  "allow-exit-screensaver",
+  "allow-fetch-trending-catalog",
+]
+
+# What a streaming site's own page may call (`capabilities/tile-remote.json`):
+# only the two commands Conduit's injected tile scripts use. Neither takes
+# input a page could abuse — `close_tile_popups` derives the tile from the
+# calling webview's label rather than trusting an argument.
+[[set]]
+identifier = "tile-page"
+description = "The commands Conduit's injected scripts call from inside a tile's remote page."
+permissions = ["allow-close-tile-popups", "allow-report-tile-activity"]

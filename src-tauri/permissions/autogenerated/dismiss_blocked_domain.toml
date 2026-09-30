@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-dismiss-blocked-domain"
+description = "Enables the dismiss_blocked_domain command without any pre-configured scope."
+commands.allow = ["dismiss_blocked_domain"]
+
+[[permission]]
+identifier = "deny-dismiss-blocked-domain"
+description = "Denies the dismiss_blocked_domain command without any pre-configured scope."
+commands.deny = ["dismiss_blocked_domain"]

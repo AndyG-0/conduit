@@ -10,11 +10,16 @@ name: Release
 # The build jobs only upload workflow artifacts; a single `publish` job
 # creates the release once both have finished, rather than both build jobs
 # racing to create/update the same release.
+#
+# It can also be run by hand (Actions > Release > Run workflow) on any
+# branch to build both platforms' installers as downloadable workflow
+# artifacts without tagging; `publish` only runs for a `v*` tag.
 
 on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
 
 jobs:
   build-macos:
@@ -48,9 +53,11 @@ jobs:
 
       - name: Zip .app bundle
         run: |
+          # A manual run's ref is a branch name, which can contain "/".
+          ref="${GITHUB_REF_NAME//\//-}"
           cd src-tauri/target/release/bundle/macos
           ditto -c -k --sequesterRsrc --keepParent *.app \
-            "Conduit-${{ github.ref_name }}-macos.app.zip"
+            "Conduit-${ref}-macos.app.zip"
 
       - uses: actions/upload-artifact@v4
         with:
@@ -96,6 +103,7 @@ jobs:
 
   publish:
     needs: [build-macos, build-windows]
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
       contents: write

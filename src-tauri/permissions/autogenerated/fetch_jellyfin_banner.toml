@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-fetch-jellyfin-banner"
+description = "Enables the fetch_jellyfin_banner command without any pre-configured scope."
+commands.allow = ["fetch_jellyfin_banner"]
+
+[[permission]]
+identifier = "deny-fetch-jellyfin-banner"
+description = "Denies the fetch_jellyfin_banner command without any pre-configured scope."
+commands.deny = ["fetch_jellyfin_banner"]

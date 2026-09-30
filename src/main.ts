@@ -395,8 +395,9 @@ let dragState: DragState | null = null;
 
 // TEMPORARY — see the matching comment in src-tauri/src/lib.rs. Remove once
 // the drag-release bug is diagnosed and fixed.
+// Dev builds only: the command is a no-op in release anyway.
 function dlog(msg: string): void {
-  void invoke("debug_log", { msg });
+  if (import.meta.env.DEV) void invoke("debug_log", { msg });
 }
 
 function onWindowPointerMove(e: PointerEvent): void {

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-list-blocked-domains"
+description = "Enables the list_blocked_domains command without any pre-configured scope."
+commands.allow = ["list_blocked_domains"]
+
+[[permission]]
+identifier = "deny-list-blocked-domains"
+description = "Denies the list_blocked_domains command without any pre-configured scope."
+commands.deny = ["list_blocked_domains"]

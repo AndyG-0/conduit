@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-navigate-active-tile-home"
+description = "Enables the navigate_active_tile_home command without any pre-configured scope."
+commands.allow = ["navigate_active_tile_home"]
+
+[[permission]]
+identifier = "deny-navigate-active-tile-home"
+description = "Denies the navigate_active_tile_home command without any pre-configured scope."
+commands.deny = ["navigate_active_tile_home"]

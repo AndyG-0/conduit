@@ -171,6 +171,9 @@ mod tests {
 
     #[test]
     fn find_icon_href_none_without_icon_links() {
-        assert_eq!(find_icon_href(r#"<link rel="stylesheet" href="a.css">"#), None);
+        assert_eq!(
+            find_icon_href(r#"<link rel="stylesheet" href="a.css">"#),
+            None
+        );
     }
 }

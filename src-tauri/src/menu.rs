@@ -135,6 +135,7 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
     let nav_separator = PredefinedMenuItem::separator(app)?;
     #[cfg(debug_assertions)]
     let devtools_separator = PredefinedMenuItem::separator(app)?;
+    #[cfg_attr(not(debug_assertions), allow(unused_mut))]
     let mut view_items: Vec<&dyn IsMenuItem<Wry>> = vec![
         &fullscreen_item,
         &pip_item,
