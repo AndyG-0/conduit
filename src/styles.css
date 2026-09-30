@@ -62,8 +62,16 @@ body {
   height: 100vh;
   /* Top padding clears the hero banner's height (`.tile-banner`, 38vh) plus
      a little breathing room, so the focused/hovered row it's actually
-     describing isn't the one it visually covers. */
+     describing isn't the one it visually covers. `.settings`/`.help` mirror
+     this exact padding so they're never covered either, regardless of
+     whether the banner's `.is-visible` state gets cleared on every path in
+     — a structural guarantee, not just a JS-timing one. `dvh` (dynamic
+     viewport height) is layered on top of the `vh` fallback because a
+     fixed-position element is measured against the real, chrome-adjusted
+     mobile viewport, while plain `vh` is measured against the layout
+     viewport and can drift out of sync with it. */
   padding: calc(38vh + 2vh) 4vw 4vh;
+  padding: calc(38dvh + 2dvh) 4vw 4vh;
   align-content: center;
   overflow-y: auto;
 }
@@ -272,6 +280,7 @@ body {
   position: fixed;
   inset: 0 0 auto 0;
   height: 38vh;
+  height: 38dvh;
   z-index: 10;
   overflow: hidden;
   pointer-events: none;
@@ -362,7 +371,10 @@ body {
 .settings {
   height: 100vh;
   overflow-y: auto;
-  padding: 4vh 4vw;
+  /* Matches `.grid`'s top padding so the hero banner can never cover the
+     top of this panel — see the comment on `.grid` above. */
+  padding: calc(38vh + 2vh) 4vw 4vh;
+  padding: calc(38dvh + 2dvh) 4vw 4vh;
 }
 
 .settings-header {
@@ -555,7 +567,10 @@ body {
 .help {
   height: 100vh;
   overflow-y: auto;
-  padding: 4vh 4vw;
+  /* Matches `.grid`'s top padding so the hero banner can never cover the
+     top of this panel — see the comment on `.grid` above. */
+  padding: calc(38vh + 2vh) 4vw 4vh;
+  padding: calc(38dvh + 2dvh) 4vw 4vh;
 }
 
 .help-content {

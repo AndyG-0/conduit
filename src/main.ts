@@ -174,7 +174,13 @@ function revertTileBannerToFocus(): void {
   }
 }
 
+/** Only wired for pointers that can actually hover (mouse/trackpad) — a
+ * touchscreen tap synthesizes a `mouseenter` with no matching `mouseleave`,
+ * which would otherwise leave the banner stuck visible over the grid until
+ * the next focus change. Touch users still get the banner via
+ * `updateTileBanner`'s focus-driven callers. */
 function attachBannerHoverListeners(button: HTMLButtonElement): void {
+  if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
   button.addEventListener("mouseenter", () => updateTileBanner(button));
   button.addEventListener("mouseleave", revertTileBannerToFocus);
 }
