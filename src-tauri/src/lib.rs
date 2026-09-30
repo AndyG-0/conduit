@@ -28,9 +28,20 @@ fn debug_log(msg: String) {
     if let Ok(mut f) = std::fs::OpenOptions::new()
         .create(true)
         .append(true)
-        .open("/tmp/conduit-debug.log")
+        .open(debug_log_path())
     {
         let _ = writeln!(f, "[js-debug] {msg}");
+    }
+}
+
+/// Where `debug_log` (and `webview.rs`'s native-side equivalent) append to:
+/// `/tmp/conduit-debug.log` on macOS, `%TEMP%\conduit-debug.log` on Windows,
+/// which has no `/tmp`.
+pub(crate) fn debug_log_path() -> std::path::PathBuf {
+    if cfg!(windows) {
+        std::env::temp_dir().join("conduit-debug.log")
+    } else {
+        std::path::PathBuf::from("/tmp/conduit-debug.log")
     }
 }
 

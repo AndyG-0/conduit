@@ -14,5 +14,6 @@ cd "$(dirname "$0")/.."
 # APPLE_SIGNING_IDENTITY in your own shell profile to a stable local
 # self-signed cert to stop that — see CONTRIBUTING.md's "Avoiding repeated
 # Keychain prompts" section.
+# Harmless on Windows (Git Bash), where nothing reads it.
 export APPLE_SIGNING_IDENTITY="${APPLE_SIGNING_IDENTITY:--}"
 pnpm tauri dev 2>&1 | tee conduit-dev.log

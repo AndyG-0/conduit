@@ -5,8 +5,7 @@
 - [pnpm](https://pnpm.io)
 - A stable Rust toolchain (`rustup default stable`)
 - Tauri's [platform prerequisites](https://v2.tauri.app/start/prerequisites/)
-  for the OS you're building on (macOS is the only one currently exercised
-  day-to-day; see [`TODO.md`](TODO.md) for Windows status)
+  for the OS you're building on (see "Windows" below)
 
 ```sh
 pnpm install
@@ -40,6 +39,19 @@ export APPLE_SIGNING_IDENTITY="Conduit Dev"
 same certificate every build keeps the app's identity stable across
 rebuilds, so Keychain remembers "Always Allow" instead of re-prompting.
 
+### Windows
+
+- Visual Studio 2022 Build Tools with the **Desktop development with C++**
+  workload (MSVC + a Windows SDK), and the `stable-x86_64-pc-windows-msvc`
+  Rust toolchain.
+- The WebView2 runtime ships with Windows 10/11, so there's nothing extra
+  to install for it.
+- Clone to a Windows path (e.g. `C:\dev\conduit`), not a WSL path — cargo
+  and `cmd.exe` both misbehave on `\\wsl.localhost\...` UNC paths. From
+  WSL, the same checkout is reachable at `/mnt/c/dev/conduit`.
+- `pnpm dev:app` needs `bash` on `PATH` (Git for Windows provides it);
+  `pnpm tauri dev` works directly otherwise.
+
 ## Before opening a PR
 
 Run the full check suite locally — this is exactly what CI
@@ -56,7 +68,8 @@ grid, settings, navigation, or webview launching, do a manual pass with
 `pnpm dev:app`: grid renders, Settings add/edit/remove persists across a
 restart, arrow keys move focus sensibly, Enter launches a tile, Cmd+Enter
 toggles fullscreen, and the back-to-grid shortcut works from inside a
-launched tile.
+launched tile. On Windows, use Ctrl in place of Cmd, and Ctrl+Shift+Backspace for
+back-to-grid.
 
 ## Code conventions
 

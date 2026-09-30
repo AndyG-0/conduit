@@ -34,8 +34,12 @@ itself needs a real-hardware check before relying on it.
 ## 8. Windows verification
 
 Repeat the macOS DRM check (see `ARCHITECTURE.md`'s stack decision)
-against WebView2. Expected to work per that rationale, but not yet
-empirically checked.
+against WebView2. Partially checked: WebView2 exposes both Widevine and
+PlayReady (hardware PlayReady SL3000 is not available), and Netflix plays.
+ESPN needed a Chrome UA and Client Hints override (`CHROME_USER_AGENT_DOMAINS` in
+`src-tauri/src/webview.rs`) because its Disney player routes the Edge
+brand to PlayReady and then fails with Error Code 28, even in real Edge.
+Still unchecked: the other seeded services.
 
 ## 10. Windows autostart / kiosk integration
 

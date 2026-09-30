@@ -64,19 +64,23 @@ see [`ARCHITECTURE.md`](ARCHITECTURE.md) for why.
 
 ## Keyboard shortcuts
 
-| Shortcut            | Action                                        |
-| -------------------- | ---------------------------------------------- |
-| Arrow keys           | Move focus around the grid                     |
-| Enter                | Launch the focused tile                        |
-| Cmd+Enter            | Toggle full screen                             |
-| Cmd+Shift+Escape     | Return to the grid from a tile                 |
-| Cmd+Shift+R          | Refresh the active tile                        |
-| Cmd+Shift+P          | Toggle picture-in-picture for the active tile  |
-| Cmd+[                | Go back in the active tile's history           |
-| Cmd+]                | Go forward in the active tile's history        |
-| Cmd+Shift+H          | Return to the tile grid (View > Home)          |
-| ?                    | Open the Help panel                            |
-| Escape               | Close a panel (Settings or Help)               |
+The same shortcuts on both platforms, with Ctrl in place of Cmd on Windows.
+The one exception is Return to grid: Windows reserves Ctrl+Shift+Escape for
+Task Manager, so Conduit uses Ctrl+Shift+Backspace there instead.
+
+| macOS                | Windows              | Action                                        |
+| -------------------- | -------------------- | --------------------------------------------- |
+| Arrow keys           | Arrow keys           | Move focus around the grid                    |
+| Enter                | Enter                | Launch the focused tile                       |
+| Cmd+Enter            | Ctrl+Enter           | Toggle full screen                            |
+| Cmd+Shift+Escape     | Ctrl+Shift+Backspace | Return to the grid from a tile                |
+| Cmd+Shift+R          | Ctrl+Shift+R         | Refresh the active tile                       |
+| Cmd+Shift+P          | Ctrl+Shift+P         | Toggle picture-in-picture for the active tile |
+| Cmd+[                | Ctrl+[               | Go back in the active tile's history          |
+| Cmd+]                | Ctrl+]               | Go forward in the active tile's history       |
+| Cmd+Shift+H          | Ctrl+Shift+H         | Return to the tile grid (View > Home)         |
+| ?                    | ?                    | Open the Help panel                           |
+| Escape               | Escape               | Close a panel (Settings or Help)              |
 
 ## Development
 
