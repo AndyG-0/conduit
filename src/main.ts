@@ -5,8 +5,8 @@ import {
   isFixedCanvasIcon,
   renderTileIcon,
 } from "./icons";
-import { openHelp } from "./help-view";
-import { openSettings } from "./settings-view";
+import { closeHelp, openHelp } from "./help-view";
+import { closeSettings, openSettings } from "./settings-view";
 import {
   applyCachedTheme,
   applyTheme,
@@ -19,6 +19,7 @@ import {
   type Direction,
 } from "@conduit/shared";
 import { initScreensaver } from "./screensaver";
+import { hasPrimaryModifier } from "./platform";
 import {
   fallbackGradient,
   refreshTrendingCatalog,
@@ -113,6 +114,14 @@ function setTileBannerArt(
 
 /** Shows the given tile's name/icon/trending artwork in the top hero banner. */
 function updateTileBanner(tileEl: HTMLElement): void {
+  // Never over Settings/Help. WebView2 focuses a clicked button (WKWebView
+  // doesn't), so opening a panel from its tile left that hidden tile as
+  // `activeElement`, and its `mouseleave` revert re-showed the banner on top
+  // of the panel's header.
+  if (grid.hidden) {
+    hideTileBanner();
+    return;
+  }
   const id = tileEl.dataset.tileId;
   if (!id) return;
 
@@ -385,8 +394,9 @@ let dragState: DragState | null = null;
 
 // TEMPORARY — see the matching comment in src-tauri/src/lib.rs. Remove once
 // the drag-release bug is diagnosed and fixed.
+// Dev builds only: the command is a no-op in release anyway.
 function dlog(msg: string): void {
-  void invoke("debug_log", { msg });
+  if (import.meta.env.DEV) void invoke("debug_log", { msg });
 }
 
 function onWindowPointerMove(e: PointerEvent): void {
@@ -669,7 +679,7 @@ window.addEventListener("DOMContentLoaded", () => {
   );
 
   window.addEventListener("keydown", (e) => {
-    if (e.metaKey && e.key === "Enter") {
+    if (hasPrimaryModifier(e) && e.key === "Enter") {
       e.preventDefault();
       void invoke("toggle_fullscreen");
       return;
@@ -741,8 +751,17 @@ window.addEventListener("DOMContentLoaded", () => {
     }
   });
 
+  // Emitted by the back-to-grid shortcut and View > Home. Home means "back
+  // to the tile grid" from anywhere, so it closes Settings/Help too, not
+  // just a tile (their close functions refocus the grid themselves).
   void listen("return-to-grid", () => {
-    focusGrid();
+    if (!settingsPanel.hidden) {
+      closeSettings();
+    } else if (!helpPanel.hidden) {
+      closeHelp();
+    } else {
+      focusGrid();
+    }
   });
 
   void listen("open-help", () => {

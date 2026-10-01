@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-navigate-active-tile-back"
+description = "Enables the navigate_active_tile_back command without any pre-configured scope."
+commands.allow = ["navigate_active_tile_back"]
+
+[[permission]]
+identifier = "deny-navigate-active-tile-back"
+description = "Denies the navigate_active_tile_back command without any pre-configured scope."
+commands.deny = ["navigate_active_tile_back"]

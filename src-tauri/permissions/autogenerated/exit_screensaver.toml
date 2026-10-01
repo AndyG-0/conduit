@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-exit-screensaver"
+description = "Enables the exit_screensaver command without any pre-configured scope."
+commands.allow = ["exit_screensaver"]
+
+[[permission]]
+identifier = "deny-exit-screensaver"
+description = "Denies the exit_screensaver command without any pre-configured scope."
+commands.deny = ["exit_screensaver"]

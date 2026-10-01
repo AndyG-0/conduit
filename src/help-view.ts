@@ -1,27 +1,10 @@
 import { renderGrid, focusGrid, hideTileBanner } from "./main";
+import { keyboardShortcuts } from "./platform";
 
 const grid = document.querySelector<HTMLElement>("#grid")!;
 const panel = document.querySelector<HTMLElement>("#help")!;
 
-const SHORTCUTS: [string, string][] = [
-  ["Arrow keys", "Move focus around the grid"],
-  ["Enter", "Launch the focused tile"],
-  ["E", "Enter edit mode on the focused tile (reorder or delete tiles)"],
-  ["Arrow keys (editing)", "Move the grabbed tile"],
-  ["Enter (editing)", "Grab or release the focused tile"],
-  ["Delete / Backspace (editing)", "Remove the focused tile"],
-  ["Escape (editing)", "Exit edit mode"],
-  ["Cmd+Enter", "Toggle full screen"],
-  ["Cmd+Shift+Escape", "Return to the grid from a tile"],
-  ["Cmd+Shift+R", "Refresh the active tile"],
-  ["Cmd+Shift+P", "Toggle picture-in-picture for the active tile"],
-  ["Cmd+[", "Go back in the active tile's history"],
-  ["Cmd+]", "Go forward in the active tile's history"],
-  ["Cmd+Shift+H", "Return to the tile grid (View > Home)"],
-  ["Cmd+Alt+I", "Toggle DevTools (debug builds only)"],
-  ["?", "Open this help panel"],
-  ["Escape", "Close a panel (Settings or Help)"],
-];
+const SHORTCUTS = keyboardShortcuts();
 
 function renderHelp(): void {
   panel.innerHTML = `

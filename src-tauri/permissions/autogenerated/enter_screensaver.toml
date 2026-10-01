@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-enter-screensaver"
+description = "Enables the enter_screensaver command without any pre-configured scope."
+commands.allow = ["enter_screensaver"]
+
+[[permission]]
+identifier = "deny-enter-screensaver"
+description = "Denies the enter_screensaver command without any pre-configured scope."
+commands.deny = ["enter_screensaver"]

@@ -65,8 +65,9 @@ fn disable_automatic_fullscreen_menu_item() {
         .setBool_forKey(false, ns_string!("NSFullScreenMenuItemEverywhere"));
 }
 
-/// Installs a native macOS menu equivalent to Tauri's own default
-/// (`Menu::default`), plus a "Refresh" item in the View submenu. Tauri's
+/// Installs a native menu equivalent to Tauri's own default
+/// (`Menu::default`), plus a "Refresh" item in the View submenu — the macOS
+/// app-menu layout there, a File/Edit/View/Window/Help menubar on Windows. Tauri's
 /// default menu isn't addressable by submenu ID after the fact, so this
 /// rebuilds the same structure explicitly rather than mutating it in place.
 pub fn install(app: &AppHandle) -> tauri::Result<()> {
@@ -98,8 +99,6 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
     )?;
 
     let open_help_item = MenuItem::with_id(app, "open_help", "Conduit Help", true, None::<&str>)?;
-    let help_menu =
-        Submenu::with_id_and_items(app, HELP_SUBMENU_ID, "Help", true, &[&open_help_item])?;
 
     let fullscreen_item = MenuItem::with_id(
         app,
@@ -136,6 +135,7 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
     let nav_separator = PredefinedMenuItem::separator(app)?;
     #[cfg(debug_assertions)]
     let devtools_separator = PredefinedMenuItem::separator(app)?;
+    #[cfg_attr(not(debug_assertions), allow(unused_mut))]
     let mut view_items: Vec<&dyn IsMenuItem<Wry>> = vec![
         &fullscreen_item,
         &pip_item,
@@ -152,51 +152,100 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
         view_items.push(&devtools_item);
     }
 
-    let menu = Menu::with_items(
+    let edit_menu = Submenu::with_items(
         app,
+        "Edit",
+        true,
         &[
-            &Submenu::with_items(
-                app,
-                pkg_info.name.clone(),
-                true,
-                &[
-                    &PredefinedMenuItem::about(app, None, Some(about_metadata))?,
-                    &PredefinedMenuItem::separator(app)?,
-                    &PredefinedMenuItem::services(app, None)?,
-                    &PredefinedMenuItem::separator(app)?,
-                    &PredefinedMenuItem::hide(app, None)?,
-                    &PredefinedMenuItem::hide_others(app, None)?,
-                    &PredefinedMenuItem::separator(app)?,
-                    &PredefinedMenuItem::quit(app, None)?,
-                ],
-            )?,
-            &Submenu::with_items(
-                app,
-                "File",
-                true,
-                &[&PredefinedMenuItem::close_window(app, None)?],
-            )?,
-            &Submenu::with_items(
-                app,
-                "Edit",
-                true,
-                &[
-                    &PredefinedMenuItem::undo(app, None)?,
-                    &PredefinedMenuItem::redo(app, None)?,
-                    &PredefinedMenuItem::separator(app)?,
-                    &PredefinedMenuItem::cut(app, None)?,
-                    &PredefinedMenuItem::copy(app, None)?,
-                    &PredefinedMenuItem::paste(app, None)?,
-                    &PredefinedMenuItem::select_all(app, None)?,
-                ],
-            )?,
-            &Submenu::with_items(app, "View", true, &view_items)?,
-            &window_menu,
-            &help_menu,
+            &PredefinedMenuItem::undo(app, None)?,
+            &PredefinedMenuItem::redo(app, None)?,
+            &PredefinedMenuItem::separator(app)?,
+            &PredefinedMenuItem::cut(app, None)?,
+            &PredefinedMenuItem::copy(app, None)?,
+            &PredefinedMenuItem::paste(app, None)?,
+            &PredefinedMenuItem::select_all(app, None)?,
         ],
     )?;
+    let view_menu = Submenu::with_items(app, "View", true, &view_items)?;
 
-    app.set_menu(menu)?;
+    #[cfg(not(windows))]
+    {
+        let help_menu =
+            Submenu::with_id_and_items(app, HELP_SUBMENU_ID, "Help", true, &[&open_help_item])?;
+        let menu = Menu::with_items(
+            app,
+            &[
+                &Submenu::with_items(
+                    app,
+                    pkg_info.name.clone(),
+                    true,
+                    &[
+                        &PredefinedMenuItem::about(app, None, Some(about_metadata))?,
+                        &PredefinedMenuItem::separator(app)?,
+                        &PredefinedMenuItem::services(app, None)?,
+                        &PredefinedMenuItem::separator(app)?,
+                        &PredefinedMenuItem::hide(app, None)?,
+                        &PredefinedMenuItem::hide_others(app, None)?,
+                        &PredefinedMenuItem::separator(app)?,
+                        &PredefinedMenuItem::quit(app, None)?,
+                    ],
+                )?,
+                &Submenu::with_items(
+                    app,
+                    "File",
+                    true,
+                    &[&PredefinedMenuItem::close_window(app, None)?],
+                )?,
+                &edit_menu,
+                &view_menu,
+                &window_menu,
+                &help_menu,
+            ],
+        )?;
+        app.set_menu(menu)?;
+    }
+
+    // Windows has no app-wide menu bar — a menu is a per-window menubar
+    // drawn inside the window itself. Windows conventions put Exit under File
+    // and About under Help (there's no app submenu to hold them), and
+    // Services/Hide/Hide Others are macOS-only concepts muda doesn't
+    // implement there. Attached to "main" only rather than via
+    // `app.set_menu`, which on Windows would also give the undecorated PiP
+    // window and SSO popups a menubar of their own. `window::
+    // toggle_fullscreen_impl` hides it while fullscreen, matching how
+    // macOS's menu bar gets out of the way.
+    #[cfg(windows)]
+    {
+        let help_menu = Submenu::with_id_and_items(
+            app,
+            HELP_SUBMENU_ID,
+            "Help",
+            true,
+            &[
+                &open_help_item,
+                &PredefinedMenuItem::separator(app)?,
+                &PredefinedMenuItem::about(app, Some("About Conduit"), Some(about_metadata))?,
+            ],
+        )?;
+        let menu = Menu::with_items(
+            app,
+            &[
+                &Submenu::with_items(
+                    app,
+                    "File",
+                    true,
+                    &[&PredefinedMenuItem::quit(app, Some("Exit"))?],
+                )?,
+                &edit_menu,
+                &view_menu,
+                &window_menu,
+                &help_menu,
+            ],
+        )?;
+        if let Some(main_window) = app.get_window("main") {
+            main_window.set_menu(menu)?;
+        }
+    }
 
     app.on_menu_event(|app, event| {
         if event.id() == "toggle_fullscreen" {
@@ -222,6 +271,10 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
             let _ = webview::navigate_active_tile_forward(app.clone());
         } else if event.id() == "home" {
             let _ = webview::return_to_grid(app.clone());
+            // Also closes Settings/Help in the launcher page (see the
+            // `return-to-grid` listener in `main.ts`) — `return_to_grid`
+            // itself only knows about tile webviews.
+            let _ = app.emit("return-to-grid", ());
         } else if event.id() == "site_home" {
             let _ = webview::navigate_active_tile_home(app.clone());
         } else if event.id() == "open_help" {

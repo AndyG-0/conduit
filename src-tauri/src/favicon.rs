@@ -25,6 +25,11 @@ async fn fetch_as_data_url(client: &reqwest::Client, url: Url) -> Option<String>
         .and_then(|v| v.to_str().ok())
         .unwrap_or("image/x-icon")
         .to_string();
+    // SPA servers often answer an unknown path with their index.html and a
+    // 200, which would render as a broken `<img>` instead of falling back.
+    if content_type.to_ascii_lowercase().starts_with("text/html") {
+        return None;
+    }
 
     let bytes = response.bytes().await.ok()?;
     if bytes.is_empty() {
@@ -98,6 +103,7 @@ fn find_icon_href(html: &str) -> Option<String> {
 /// icon directly in the tag. When the root guess fails, this falls back to
 /// fetching the page itself and parsing its `<link rel="icon">` tags,
 /// resolving a relative href against the page's *final* URL (post-redirect).
+/// If `base_url`'s own page yields nothing, the site root's page is tried too.
 ///
 /// Returns `None` on any failure (unparsable URL, unreachable host, timeout,
 /// non-2xx, no icon link found) — callers should treat that as "no favicon
@@ -113,7 +119,23 @@ pub async fn fetch_favicon(base_url: String) -> Option<String> {
         }
     }
 
-    let page = client.get(base).send().await.ok()?;
+    if let Some(icon) = icon_from_page(&client, base.clone()).await {
+        return Some(icon);
+    }
+    // A tile's `base_url` can be a client-side route the server itself
+    // 404s (Jellyfin's `/web/home`; the real route is `/web/#/home`). The
+    // site root redirects to the app's actual entry page instead.
+    let root = base.join("/").ok()?;
+    if root == base {
+        return None;
+    }
+    icon_from_page(&client, root).await
+}
+
+/// Fetches the HTML page at `url` and returns the icon its `<link rel="icon">`
+/// tags point to, resolved against the page's final (post-redirect) URL.
+async fn icon_from_page(client: &reqwest::Client, url: Url) -> Option<String> {
+    let page = client.get(url).send().await.ok()?;
     if !page.status().is_success() {
         return None;
     }
@@ -126,5 +148,32 @@ pub async fn fetch_favicon(base_url: String) -> Option<String> {
     }
 
     let icon_url = page_url.join(&href).ok()?;
-    fetch_as_data_url(&client, icon_url).await
+    fetch_as_data_url(client, icon_url).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn find_icon_href_prefers_shortcut_icon_over_apple_touch_icon() {
+        // Jellyfin 10.x's `/web/` index.
+        let html = r#"<link rel="apple-touch-icon" sizes="180x180" href="touchicon.f5bb.png">
+<link rel="shortcut icon" href="favicon.bc8d.ico">"#;
+        assert_eq!(find_icon_href(html).as_deref(), Some("favicon.bc8d.ico"));
+    }
+
+    #[test]
+    fn find_icon_href_falls_back_to_apple_touch_icon() {
+        let html = r#"<link rel="apple-touch-icon" href="/touch.png">"#;
+        assert_eq!(find_icon_href(html).as_deref(), Some("/touch.png"));
+    }
+
+    #[test]
+    fn find_icon_href_none_without_icon_links() {
+        assert_eq!(
+            find_icon_href(r#"<link rel="stylesheet" href="a.css">"#),
+            None
+        );
+    }
 }

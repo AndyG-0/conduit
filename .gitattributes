@@ -1,0 +1,7 @@
+# Keep LF everywhere, including Windows checkouts (CI's windows-latest runner
+# defaults to core.autocrlf=true): scripts/*.sh must stay LF to run under Git
+# Bash, and `prettier --check` expects LF.
+* text=auto eol=lf
+*.png binary
+*.ico binary
+*.icns binary
