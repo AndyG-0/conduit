@@ -1,12 +1,22 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { TMDB_PROVIDERS, fetchTrendingCatalog } from "../../src/lib/tmdb.js";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { SafeFetchResult } from "../../src/lib/http-fetch.js";
 
-function jsonResponse(body: unknown, ok = true): Response {
+vi.mock("../../src/lib/http-fetch.js", () => ({
+  safeFetch: vi.fn(),
+}));
+
+const { TMDB_PROVIDERS, fetchTrendingCatalog } = await import(
+  "../../src/lib/tmdb.js"
+);
+const { safeFetch } = await import("../../src/lib/http-fetch.js");
+
+function jsonResult(body: unknown, status = 200): SafeFetchResult {
   return {
-    ok,
-    status: ok ? 200 : 500,
-    json: async () => body,
-  } as Response;
+    status,
+    contentType: "application/json",
+    body: Buffer.from(JSON.stringify(body)),
+    finalUrl: "https://api.themoviedb.org/3/mock",
+  };
 }
 
 describe("TMDB_PROVIDERS", () => {
@@ -23,34 +33,29 @@ describe("TMDB_PROVIDERS", () => {
 
 describe("fetchTrendingCatalog", () => {
   beforeEach(() => {
-    vi.stubGlobal("fetch", vi.fn());
-  });
-
-  afterEach(() => {
-    vi.unstubAllGlobals();
+    vi.resetAllMocks();
   });
 
   it("returns an empty catalog when no key is given", async () => {
     const catalog = await fetchTrendingCatalog("  ");
     expect(catalog).toEqual({});
-    expect(fetch).not.toHaveBeenCalled();
+    expect(safeFetch).not.toHaveBeenCalled();
   });
 
   it("builds a banner for a tile whose provider matches a trending title", async () => {
-    vi.mocked(fetch).mockImplementation(async (input) => {
-      const url = String(input);
+    vi.mocked(safeFetch).mockImplementation(async (url) => {
       if (url.includes("/trending/movie/week")) {
-        return jsonResponse({
+        return jsonResult({
           results: [
             { id: 1, title: "A Movie", backdrop_path: "/a.jpg", popularity: 10 },
           ],
         });
       }
       if (url.includes("/trending/tv/week")) {
-        return jsonResponse({ results: [] });
+        return jsonResult({ results: [] });
       }
       if (url.includes("/movie/1/watch/providers")) {
-        return jsonResponse({
+        return jsonResult({
           results: { US: { flatrate: [{ provider_id: 8 }] } },
         });
       }
@@ -66,20 +71,19 @@ describe("fetchTrendingCatalog", () => {
   });
 
   it("excludes rent-only availability from provider matching", async () => {
-    vi.mocked(fetch).mockImplementation(async (input) => {
-      const url = String(input);
+    vi.mocked(safeFetch).mockImplementation(async (url) => {
       if (url.includes("/trending/movie/week")) {
-        return jsonResponse({
+        return jsonResult({
           results: [
             { id: 1, title: "A Movie", backdrop_path: "/a.jpg", popularity: 10 },
           ],
         });
       }
       if (url.includes("/trending/tv/week")) {
-        return jsonResponse({ results: [] });
+        return jsonResult({ results: [] });
       }
       if (url.includes("/watch/providers")) {
-        return jsonResponse({
+        return jsonResult({
           results: { US: { rent: [{ provider_id: 8 }] } },
         });
       }
@@ -98,16 +102,15 @@ describe("fetchTrendingCatalog", () => {
       popularity: 100 - i,
     }));
 
-    vi.mocked(fetch).mockImplementation(async (input) => {
-      const url = String(input);
+    vi.mocked(safeFetch).mockImplementation(async (url) => {
       if (url.includes("/trending/movie/week")) {
-        return jsonResponse({ results: movieResults });
+        return jsonResult({ results: movieResults });
       }
       if (url.includes("/trending/tv/week")) {
-        return jsonResponse({ results: [] });
+        return jsonResult({ results: [] });
       }
       if (url.includes("/watch/providers")) {
-        return jsonResponse({
+        return jsonResult({
           results: { US: { flatrate: [{ provider_id: 8 }] } },
         });
       }
@@ -120,9 +123,8 @@ describe("fetchTrendingCatalog", () => {
   });
 
   it("skips a tile when nothing trending is available on it", async () => {
-    vi.mocked(fetch).mockImplementation(async (input) => {
-      const url = String(input);
-      if (url.includes("/trending/")) return jsonResponse({ results: [] });
+    vi.mocked(safeFetch).mockImplementation(async (url) => {
+      if (url.includes("/trending/")) return jsonResult({ results: [] });
       throw new Error(`unexpected url: ${url}`);
     });
 
@@ -131,7 +133,7 @@ describe("fetchTrendingCatalog", () => {
   });
 
   it("returns an empty catalog when the trending request fails", async () => {
-    vi.mocked(fetch).mockResolvedValue(jsonResponse({}, false));
+    vi.mocked(safeFetch).mockResolvedValue(jsonResult({}, 500));
     const catalog = await fetchTrendingCatalog("test-key");
     expect(catalog).toEqual({});
   });

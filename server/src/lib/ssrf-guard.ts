@@ -37,6 +37,16 @@ function isIPv6Loopback(ip: string): boolean {
   return ip === "::1";
 }
 
+/** Extracts the embedded IPv4 address from an IPv4-mapped (`::ffff:a.b.c.d`)
+ * or IPv4-compatible (`::a.b.c.d`) IPv6 address, so it can be checked with
+ * the IPv4 rules instead of silently passing the IPv6 checks. */
+function extractMappedIPv4(ip: string): string | null {
+  const match = /^::(ffff:)?(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/i.exec(ip);
+  if (!match) return null;
+  const candidate = match[2];
+  return net.isIP(candidate) === 4 ? candidate : null;
+}
+
 export interface GuardResult {
   allowed: boolean;
   reason?: string;
@@ -52,6 +62,8 @@ export function checkResolvedIp(ip: string): GuardResult {
     return { allowed: true };
   }
   if (version === 6) {
+    const mapped = extractMappedIPv4(ip);
+    if (mapped) return checkResolvedIp(mapped);
     if (isIPv6Loopback(ip)) return { allowed: false, reason: "loopback address" };
     if (isIPv6LinkLocal(ip))
       return { allowed: false, reason: "link-local address" };

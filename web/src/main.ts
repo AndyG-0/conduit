@@ -5,11 +5,23 @@ import {
 } from "./icons";
 import { openHelp } from "./help-view";
 import { openSettings } from "./settings-view";
-import { findNextFocusTarget, type Direction } from "./spatial-nav";
-import { idAfter, moveIdBefore, swapIds } from "./reorder";
-import { startGamepadPolling } from "./gamepad";
-import { applyCachedTheme, applyTheme } from "./theme";
-import { authApi, preferencesApi, tilesApi, UNAUTHENTICATED_EVENT } from "./api-client";
+import {
+  applyCachedTheme,
+  applyTheme,
+  escapeHtml,
+  findNextFocusTarget,
+  idAfter,
+  moveIdBefore,
+  startGamepadPolling,
+  swapIds,
+  type Direction,
+} from "@conduit/shared";
+import {
+  authApi,
+  preferencesApi,
+  tilesApi,
+  UNAUTHENTICATED_EVENT,
+} from "./api-client";
 import { renderAuthView } from "./auth-view";
 import {
   fallbackGradient,
@@ -61,6 +73,12 @@ let grabbedTileId: string | null = null;
 let confirmingDeleteId: string | null = null;
 let orderedTileIds: string[] = [];
 
+// startApp() can run more than once per page load (a mid-session 401 bounces
+// to the login screen, and a successful re-login re-runs it) — this guards
+// against piling up duplicate `keydown` listeners, which would otherwise
+// each handle the same keypress independently (e.g. a double DELETE request).
+let keydownListenerAttached = false;
+
 const HOLD_TO_EDIT_MS = 550;
 const DRAG_THRESHOLD_PX = 8;
 
@@ -77,20 +95,6 @@ function tileMarkup(tile: AppTileView): string {
       </span>
     </span>
   `;
-}
-
-function escapeHtml(s: string): string {
-  return s.replace(
-    /[&<>"']/g,
-    (c) =>
-      ({
-        "&": "&amp;",
-        "<": "&lt;",
-        ">": "&gt;",
-        '"': "&quot;",
-        "'": "&#39;",
-      })[c]!,
-  );
 }
 
 /**
@@ -670,76 +674,80 @@ function startApp(): void {
     },
   );
 
-  window.addEventListener("keydown", (e) => {
-    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-      e.preventDefault();
-      toggleFullscreen();
-      return;
-    }
-
-    if (e.key === "?" && !grid.hidden) {
-      e.preventDefault();
-      openHelp();
-      return;
-    }
-
-    const focusedTileId = document.activeElement?.classList.contains("tile")
-      ? (document.activeElement as HTMLElement).dataset.tileId
-      : undefined;
-
-    if (e.key.toLowerCase() === "e" && !editMode && focusedTileId) {
-      e.preventDefault();
-      enterEditMode(focusedTileId);
-      return;
-    }
-
-    if (e.key === "Escape") {
-      if (confirmingDeleteId) {
+  if (!keydownListenerAttached) {
+    keydownListenerAttached = true;
+    window.addEventListener("keydown", (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
         e.preventDefault();
-        cancelDeleteConfirm();
-      } else if (editMode) {
+        toggleFullscreen();
+        return;
+      }
+
+      if (e.key === "?" && !grid.hidden) {
         e.preventDefault();
-        void exitEditMode();
+        openHelp();
+        return;
       }
-      return;
-    }
 
-    if (
-      (e.key === "Delete" || e.key === "Backspace") &&
-      editMode &&
-      focusedTileId
-    ) {
-      e.preventDefault();
-      showDeleteConfirm(focusedTileId);
-      return;
-    }
+      const focusedTileId = document.activeElement?.classList.contains("tile")
+        ? (document.activeElement as HTMLElement).dataset.tileId
+        : undefined;
 
-    if (
-      e.key === "Enter" &&
-      document.activeElement?.classList.contains("tile")
-    ) {
-      e.preventDefault();
-      if (editMode && confirmingDeleteId) {
-        void confirmDeleteTile(confirmingDeleteId);
-      } else if (editMode && focusedTileId) {
-        grabbedTileId = grabbedTileId === focusedTileId ? null : focusedTileId;
-        updateGrabbedHighlight();
-      } else if (!editMode) {
-        (document.activeElement as HTMLButtonElement).click();
+      if (e.key.toLowerCase() === "e" && !editMode && focusedTileId) {
+        e.preventDefault();
+        enterEditMode(focusedTileId);
+        return;
       }
-      return;
-    }
 
-    const direction = ARROW_DIRECTIONS[e.key];
-    if (direction && document.activeElement?.classList.contains("tile")) {
-      e.preventDefault();
-      if (editMode && grabbedTileId) {
-        moveGrabbedTile(direction);
-      } else if (!editMode) {
-        moveFocus(direction);
+      if (e.key === "Escape") {
+        if (confirmingDeleteId) {
+          e.preventDefault();
+          cancelDeleteConfirm();
+        } else if (editMode) {
+          e.preventDefault();
+          void exitEditMode();
+        }
+        return;
       }
-    }
-  });
+
+      if (
+        (e.key === "Delete" || e.key === "Backspace") &&
+        editMode &&
+        focusedTileId
+      ) {
+        e.preventDefault();
+        showDeleteConfirm(focusedTileId);
+        return;
+      }
+
+      if (
+        e.key === "Enter" &&
+        document.activeElement?.classList.contains("tile")
+      ) {
+        e.preventDefault();
+        if (editMode && confirmingDeleteId) {
+          void confirmDeleteTile(confirmingDeleteId);
+        } else if (editMode && focusedTileId) {
+          grabbedTileId =
+            grabbedTileId === focusedTileId ? null : focusedTileId;
+          updateGrabbedHighlight();
+        } else if (!editMode) {
+          (document.activeElement as HTMLButtonElement).click();
+        }
+        return;
+      }
+
+      const direction = ARROW_DIRECTIONS[e.key];
+      if (direction && document.activeElement?.classList.contains("tile")) {
+        e.preventDefault();
+        if (editMode && grabbedTileId) {
+          moveGrabbedTile(direction);
+        } else if (!editMode) {
+          moveFocus(direction);
+        }
+      }
+    });
+  }
 
   // Fire-and-forget: fetched once per session, cached in `trending.ts`. If
   // it lands after the user's already hovering/focused a tile, refresh that

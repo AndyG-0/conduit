@@ -1,3 +1,4 @@
+import { escapeHtml } from "@conduit/shared";
 import { faviconProxyUrl } from "./api-client";
 import netflix from "./assets/logos/netflix.svg?raw";
 import hbomax from "./assets/logos/hbomax.svg?raw";
@@ -76,20 +77,6 @@ export function monogramColor(seed: string): string {
     hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
   }
   return MONOGRAM_COLORS[hash % MONOGRAM_COLORS.length];
-}
-
-function escapeHtml(s: string): string {
-  return s.replace(
-    /[&<>"']/g,
-    (c) =>
-      ({
-        "&": "&amp;",
-        "<": "&lt;",
-        ">": "&gt;",
-        '"': "&quot;",
-        "'": "&#39;",
-      })[c]!,
-  );
 }
 
 /**

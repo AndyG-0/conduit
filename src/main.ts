@@ -7,11 +7,18 @@ import {
 } from "./icons";
 import { openHelp } from "./help-view";
 import { openSettings } from "./settings-view";
-import { findNextFocusTarget, type Direction } from "./spatial-nav";
-import { idAfter, moveIdBefore, swapIds } from "./reorder";
-import { startGamepadPolling } from "./gamepad";
+import {
+  applyCachedTheme,
+  applyTheme,
+  escapeHtml,
+  findNextFocusTarget,
+  idAfter,
+  moveIdBefore,
+  startGamepadPolling,
+  swapIds,
+  type Direction,
+} from "@conduit/shared";
 import { initScreensaver } from "./screensaver";
-import { applyCachedTheme, applyTheme } from "./theme";
 import {
   fallbackGradient,
   refreshTrendingCatalog,
@@ -76,20 +83,6 @@ function tileMarkup(tile: AppTile): string {
       </span>
     </span>
   `;
-}
-
-function escapeHtml(s: string): string {
-  return s.replace(
-    /[&<>"']/g,
-    (c) =>
-      ({
-        "&": "&amp;",
-        "<": "&lt;",
-        ">": "&gt;",
-        '"': "&quot;",
-        "'": "&#39;",
-      })[c]!,
-  );
 }
 
 /**

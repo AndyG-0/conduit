@@ -11,6 +11,15 @@
   --accent: #e50914;
   --error: #ff6b6b;
   --banner-bg: rgba(20, 20, 22, 0.7);
+  /* Hero banner height (`.tile-banner`) plus the breathing room every panel
+     that must never be covered by it (`.grid`, `.settings`, `.help`) reserves
+     as top padding — defined once here so the two stay in lockstep instead
+     of needing the same literal edited in four rules. See the comment on
+     `.grid` below for why both the `vh` and `dvh` variants exist. */
+  --hero-banner-height: 38vh;
+  --hero-banner-height-dvh: 38dvh;
+  --hero-banner-space: calc(var(--hero-banner-height) + 2vh);
+  --hero-banner-space-dvh: calc(var(--hero-banner-height-dvh) + 2dvh);
 }
 
 :root[data-theme="light"] {
@@ -60,9 +69,10 @@ body {
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   gap: 2.5vw 2vw;
   height: 100vh;
-  /* Top padding clears the hero banner's height (`.tile-banner`, 38vh) plus
-     a little breathing room, so the focused/hovered row it's actually
-     describing isn't the one it visually covers. `.settings`/`.help` mirror
+  /* Top padding clears the hero banner's height (`.tile-banner`,
+     `--hero-banner-height`) plus a little breathing room, so the
+     focused/hovered row it's actually describing isn't the one it visually
+     covers. `.settings`/`.help` mirror
      this exact padding so they're never covered either, regardless of
      whether the banner's `.is-visible` state gets cleared on every path in
      — a structural guarantee, not just a JS-timing one. `dvh` (dynamic
@@ -70,8 +80,8 @@ body {
      fixed-position element is measured against the real, chrome-adjusted
      mobile viewport, while plain `vh` is measured against the layout
      viewport and can drift out of sync with it. */
-  padding: calc(38vh + 2vh) 4vw 4vh;
-  padding: calc(38dvh + 2dvh) 4vw 4vh;
+  padding: var(--hero-banner-space) 4vw 4vh;
+  padding: var(--hero-banner-space-dvh) 4vw 4vh;
   align-content: center;
   overflow-y: auto;
 }
@@ -279,8 +289,8 @@ body {
 .tile-banner {
   position: fixed;
   inset: 0 0 auto 0;
-  height: 38vh;
-  height: 38dvh;
+  height: var(--hero-banner-height);
+  height: var(--hero-banner-height-dvh);
   z-index: 10;
   overflow: hidden;
   pointer-events: none;
@@ -373,8 +383,8 @@ body {
   overflow-y: auto;
   /* Matches `.grid`'s top padding so the hero banner can never cover the
      top of this panel — see the comment on `.grid` above. */
-  padding: calc(38vh + 2vh) 4vw 4vh;
-  padding: calc(38dvh + 2dvh) 4vw 4vh;
+  padding: var(--hero-banner-space) 4vw 4vh;
+  padding: var(--hero-banner-space-dvh) 4vw 4vh;
 }
 
 .settings-header {
@@ -569,8 +579,8 @@ body {
   overflow-y: auto;
   /* Matches `.grid`'s top padding so the hero banner can never cover the
      top of this panel — see the comment on `.grid` above. */
-  padding: calc(38vh + 2vh) 4vw 4vh;
-  padding: calc(38dvh + 2dvh) 4vw 4vh;
+  padding: var(--hero-banner-space) 4vw 4vh;
+  padding: var(--hero-banner-space-dvh) 4vw 4vh;
 }
 
 .help-content {

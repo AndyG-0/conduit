@@ -24,6 +24,11 @@ export function createApp(dataDir: string = DATA_DIR): Express {
 
   const app = express();
   app.disable("x-powered-by");
+  // The documented deployment (Caddyfile) terminates TLS and reverse-proxies
+  // to this server over plain HTTP on the same Docker network — exactly one
+  // hop. Without this, `req.secure` is always false behind that proxy and
+  // the session cookie never gets the `Secure` attribute (see setSessionCookie).
+  app.set("trust proxy", 1);
   app.use(
     helmet({
       // The proxy endpoints return third-party images with their own

@@ -25,6 +25,12 @@ async function request<T>(
   method: string,
   path: string,
   body?: unknown,
+  // The login call's own 401 ("incorrect passphrase") is a normal rejection
+  // the caller already handles — it isn't an existing session dying, so it
+  // must not trigger the global bounce-to-login-screen event (that wipes
+  // the login form's DOM out from under auth-view.ts before it can show
+  // the error).
+  { suppressUnauthenticatedEvent = false } = {},
 ): Promise<T> {
   const res = await fetch(path, {
     method,
@@ -34,7 +40,9 @@ async function request<T>(
   });
 
   if (res.status === 401) {
-    window.dispatchEvent(new CustomEvent(UNAUTHENTICATED_EVENT));
+    if (!suppressUnauthenticatedEvent) {
+      window.dispatchEvent(new CustomEvent(UNAUTHENTICATED_EVENT));
+    }
     throw new ApiError(401, "unauthenticated");
   }
 
@@ -58,7 +66,9 @@ export const authApi = {
   setup: (passphrase: string) =>
     request<AuthStatus>("POST", "/api/auth/setup", { passphrase }),
   login: (passphrase: string) =>
-    request<AuthStatus>("POST", "/api/auth/login", { passphrase }),
+    request<AuthStatus>("POST", "/api/auth/login", { passphrase }, {
+      suppressUnauthenticatedEvent: true,
+    }),
   logout: () => request<void>("POST", "/api/auth/logout"),
 };
 

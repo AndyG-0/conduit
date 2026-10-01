@@ -1,4 +1,5 @@
 import type { TrendingBanner } from "@conduit/shared";
+import { safeFetch } from "./http-fetch.js";
 
 const TMDB_API_BASE = "https://api.themoviedb.org/3";
 const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w1280";
@@ -65,16 +66,12 @@ function regionProviderIds(region: TmdbRegionProviders): number[] {
 }
 
 async function fetchTmdbJson<T>(url: string): Promise<T | null> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), TMDB_FETCH_TIMEOUT_MS);
   try {
-    const response = await fetch(url, { signal: controller.signal });
-    if (!response.ok) return null;
-    return (await response.json()) as T;
+    const response = await safeFetch(url, { timeoutMs: TMDB_FETCH_TIMEOUT_MS });
+    if (response.status < 200 || response.status >= 300) return null;
+    return JSON.parse(response.body.toString("utf-8")) as T;
   } catch {
     return null;
-  } finally {
-    clearTimeout(timeout);
   }
 }
 

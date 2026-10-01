@@ -16,6 +16,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@conduit/shared": "workspace:*",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-autostart": "^2.5.1",
     "simple-icons": "^16.32.0"

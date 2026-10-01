@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { resolveTheme } from "./theme";
+import { resolveTheme } from "./theme.js";
 
 function mockMatchMedia(matches: boolean): void {
   const matchMedia = vi.fn().mockImplementation((query: string) => ({

@@ -5,28 +5,19 @@ import {
   KNOWN_ICON_SLUGS,
 } from "./icons";
 import { renderGrid, focusGrid, hideTileBanner } from "./main";
-import { applyTheme } from "./theme";
 import { preferencesApi, tilesApi } from "./api-client";
 import { refreshTrendingCatalog } from "./trending";
 import { refreshJellyfinBanner } from "./jellyfin";
-import type { AppTileInput, AppTileView, ThemeSetting } from "@conduit/shared";
+import {
+  applyTheme,
+  escapeHtml,
+  type AppTileInput,
+  type AppTileView,
+  type ThemeSetting,
+} from "@conduit/shared";
 
 const grid = document.querySelector<HTMLElement>("#grid")!;
 const panel = document.querySelector<HTMLElement>("#settings")!;
-
-function escapeHtml(s: string): string {
-  return s.replace(
-    /[&<>"']/g,
-    (c) =>
-      ({
-        "&": "&amp;",
-        "<": "&lt;",
-        ">": "&gt;",
-        '"': "&quot;",
-        "'": "&#39;",
-      })[c]!,
-  );
-}
 
 function iconOptions(selected: string | null): string {
   const none = `<option value="" ${selected ? "" : "selected"}>Auto (favicon)</option>`;
@@ -213,6 +204,7 @@ async function renderSettings(editingId: string | null = null): Promise<void> {
         applyTheme(next);
         try {
           await preferencesApi.setTheme(next);
+          preferences.theme = next;
         } catch (err) {
           select.value = previous;
           applyTheme(previous);

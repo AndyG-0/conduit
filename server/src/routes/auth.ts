@@ -1,11 +1,11 @@
 import { Router } from "express";
 import type { AuthStatus } from "@conduit/shared";
 import { COOKIE_NAME, SESSION_MAX_AGE_MS } from "../config.js";
+import { hasValidSession } from "../middleware/auth.js";
 import {
   createSessionToken,
   hashPassphrase,
   verifyPassphrase,
-  verifySessionToken,
 } from "../lib/session-auth.js";
 import { saveSecrets, type SecretsFile } from "../lib/secrets.js";
 
@@ -30,11 +30,8 @@ export function createAuthRouter(dataDir: string, secrets: SecretsFile): Router 
   const router = Router();
 
   router.get("/status", (req, res) => {
-    const token = req.cookies?.[COOKIE_NAME];
     const status: AuthStatus = {
-      authenticated:
-        typeof token === "string" &&
-        verifySessionToken(token, secrets.sessionSigningKey),
+      authenticated: hasValidSession(req, secrets),
       needsSetup: !secrets.passphraseHash,
     };
     res.json(status);

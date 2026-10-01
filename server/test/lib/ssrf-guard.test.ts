@@ -30,6 +30,19 @@ describe("checkResolvedIp", () => {
     expect(checkResolvedIp("93.184.216.34").allowed).toBe(true);
   });
 
+  it("blocks IPv4-mapped IPv6 loopback and link-local (cloud-metadata) addresses", () => {
+    expect(checkResolvedIp("::ffff:127.0.0.1").allowed).toBe(false);
+    expect(checkResolvedIp("::ffff:169.254.169.254").allowed).toBe(false);
+  });
+
+  it("blocks IPv4-compatible IPv6 loopback addresses", () => {
+    expect(checkResolvedIp("::127.0.0.1").allowed).toBe(false);
+  });
+
+  it("allows IPv4-mapped IPv6 addresses whose embedded IPv4 is allowed", () => {
+    expect(checkResolvedIp("::ffff:192.168.1.50").allowed).toBe(true);
+  });
+
   it("rejects a non-IP string", () => {
     expect(checkResolvedIp("not-an-ip").allowed).toBe(false);
   });

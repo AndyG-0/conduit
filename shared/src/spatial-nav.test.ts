@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findNextFocusTarget, type FocusCandidate } from "./spatial-nav";
+import { findNextFocusTarget, type FocusCandidate } from "./spatial-nav.js";
 
 // A 3x2 grid of 100x100 tiles with 20px gaps, laid out left-to-right,
 // top-to-bottom: a b c / d e f.

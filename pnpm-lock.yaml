@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@conduit/shared':
+        specifier: workspace:*
+        version: link:shared
       '@tauri-apps/api':
         specifier: ^2
         version: 2.11.1
