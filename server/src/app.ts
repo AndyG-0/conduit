@@ -42,13 +42,21 @@ export function createApp(dataDir: string = DATA_DIR): Express {
   app.use(express.json());
 
   app.use("/api/auth", createAuthRouter(dataDir, secrets));
-  app.use("/api/tiles", requireAuth(secrets), createTilesRouter(dataDir, registry, secrets));
+  app.use(
+    "/api/tiles",
+    requireAuth(secrets),
+    createTilesRouter(dataDir, registry, secrets),
+  );
   app.use(
     "/api/preferences",
     requireAuth(secrets),
     createPreferencesRouter(dataDir, preferences, secrets),
   );
-  app.use("/api/proxy", requireAuth(secrets), createProxyRouter(registry, secrets));
+  app.use(
+    "/api/proxy",
+    requireAuth(secrets),
+    createProxyRouter(registry, secrets),
+  );
 
   if (fs.existsSync(WEB_DIST_DIR)) {
     app.use(express.static(WEB_DIST_DIR));

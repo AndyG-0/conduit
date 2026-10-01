@@ -50,9 +50,7 @@ describe("Registry", () => {
   it("seeds a fresh registry with defaultSeed and persists it", () => {
     const registry = Registry.load(dataDir, emptySecrets());
     expect(registry.list().length).toBe(defaultSeed().length);
-    expect(
-      fs.existsSync(path.join(dataDir, "registry.json")),
-    ).toBe(true);
+    expect(fs.existsSync(path.join(dataDir, "registry.json"))).toBe(true);
   });
 
   it("rejects empty required fields", () => {
@@ -120,9 +118,7 @@ describe("Registry", () => {
   it("rejects a reorder with an unknown id", () => {
     const registry = loadEmpty(emptySecrets());
     const ids = seedThree(registry);
-    expect(() =>
-      registry.reorder([ids[0]!, ids[1]!, "nonexistent"]),
-    ).toThrow();
+    expect(() => registry.reorder([ids[0]!, ids[1]!, "nonexistent"])).toThrow();
   });
 
   it("rejects a reorder with a duplicate id", () => {
@@ -135,12 +131,12 @@ describe("Registry", () => {
     const secrets = emptySecrets();
     const registry = loadEmpty(secrets);
     const tile = registry.add(input("Jellyfin", "https://example.com/"));
-    expect(registry.list().find((t) => t.id === tile.id)?.jellyfin_api_key_set).toBe(
-      false,
-    );
+    expect(
+      registry.list().find((t) => t.id === tile.id)?.jellyfin_api_key_set,
+    ).toBe(false);
     secrets.jellyfin[tile.id] = "some-key";
-    expect(registry.list().find((t) => t.id === tile.id)?.jellyfin_api_key_set).toBe(
-      true,
-    );
+    expect(
+      registry.list().find((t) => t.id === tile.id)?.jellyfin_api_key_set,
+    ).toBe(true);
   });
 });

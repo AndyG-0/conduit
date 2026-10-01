@@ -57,7 +57,9 @@ export interface FaviconResult {
  * Returns `null` on any failure — callers should treat that as "no favicon
  * available", not surface an error.
  */
-export async function fetchFavicon(baseUrl: string): Promise<FaviconResult | null> {
+export async function fetchFavicon(
+  baseUrl: string,
+): Promise<FaviconResult | null> {
   let base: URL;
   try {
     base = new URL(baseUrl);

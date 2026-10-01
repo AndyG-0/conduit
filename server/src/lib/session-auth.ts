@@ -46,9 +46,7 @@ export function createSessionToken(
   now: number = Date.now(),
 ): string {
   const payload: SessionPayload = { iat: now, exp: now + maxAgeMs };
-  const payloadB64 = Buffer.from(JSON.stringify(payload)).toString(
-    "base64url",
-  );
+  const payloadB64 = Buffer.from(JSON.stringify(payload)).toString("base64url");
   const sig = crypto
     .createHmac("sha256", Buffer.from(signingKey, "hex"))
     .update(payloadB64)

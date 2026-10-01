@@ -66,7 +66,10 @@ async function fetchFirstUserId(
   base: string,
   apiKey: string,
 ): Promise<string | null> {
-  const users = await fetchJellyfinJson<JellyfinUser[]>(`${base}/Users`, apiKey);
+  const users = await fetchJellyfinJson<JellyfinUser[]>(
+    `${base}/Users`,
+    apiKey,
+  );
   return users?.[0]?.Id ?? null;
 }
 

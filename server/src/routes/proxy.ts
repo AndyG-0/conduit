@@ -12,7 +12,10 @@ import { fetchJellyfinBanner } from "../lib/jellyfin-banner.js";
  * because it needs a secret (TMDB/Jellyfin API keys) that must never reach
  * the client.
  */
-export function createProxyRouter(registry: Registry, secrets: SecretsFile): Router {
+export function createProxyRouter(
+  registry: Registry,
+  secrets: SecretsFile,
+): Router {
   const router = Router();
 
   router.get("/favicon", async (req, res) => {

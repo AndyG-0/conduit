@@ -51,7 +51,9 @@ describe("createApp", () => {
   it("rejects setup a second time once a passphrase exists", async () => {
     const app = createApp(dataDir);
     const agent = request.agent(app);
-    await agent.post("/api/auth/setup").send({ passphrase: "first passphrase" });
+    await agent
+      .post("/api/auth/setup")
+      .send({ passphrase: "first passphrase" });
     const second = await agent
       .post("/api/auth/setup")
       .send({ passphrase: "second passphrase" });
@@ -79,7 +81,9 @@ describe("createApp", () => {
   it("logout clears the session so protected routes 401 again", async () => {
     const app = createApp(dataDir);
     const agent = request.agent(app);
-    await agent.post("/api/auth/setup").send({ passphrase: "correct horse battery staple" });
+    await agent
+      .post("/api/auth/setup")
+      .send({ passphrase: "correct horse battery staple" });
     expect((await agent.get("/api/tiles")).status).toBe(200);
 
     await agent.post("/api/auth/logout");
@@ -89,18 +93,24 @@ describe("createApp", () => {
   it("supports full tile CRUD once authenticated", async () => {
     const app = createApp(dataDir);
     const agent = request.agent(app);
-    await agent.post("/api/auth/setup").send({ passphrase: "correct horse battery staple" });
+    await agent
+      .post("/api/auth/setup")
+      .send({ passphrase: "correct horse battery staple" });
 
-    const created = await agent
-      .post("/api/tiles")
-      .send({ name: "My Custom App", base_url: "https://example.com/", icon_slug: null });
+    const created = await agent.post("/api/tiles").send({
+      name: "My Custom App",
+      base_url: "https://example.com/",
+      icon_slug: null,
+    });
     expect(created.status).toBe(201);
     expect(created.body.id).toBe("my-custom-app");
     expect(created.body.jellyfin_api_key_set).toBe(false);
 
-    const updated = await agent
-      .put(`/api/tiles/${created.body.id}`)
-      .send({ name: "Renamed App", base_url: "https://example.com/", icon_slug: null });
+    const updated = await agent.put(`/api/tiles/${created.body.id}`).send({
+      name: "Renamed App",
+      base_url: "https://example.com/",
+      icon_slug: null,
+    });
     expect(updated.status).toBe(200);
     expect(updated.body.name).toBe("Renamed App");
 
@@ -110,7 +120,9 @@ describe("createApp", () => {
     expect(withKey.status).toBe(204);
 
     const list = await agent.get("/api/tiles");
-    const tile = list.body.find((t: { id: string }) => t.id === created.body.id);
+    const tile = list.body.find(
+      (t: { id: string }) => t.id === created.body.id,
+    );
     expect(tile.jellyfin_api_key_set).toBe(true);
 
     const removed = await agent.delete(`/api/tiles/${created.body.id}`);
@@ -120,16 +132,24 @@ describe("createApp", () => {
   it("updates preferences once authenticated", async () => {
     const app = createApp(dataDir);
     const agent = request.agent(app);
-    await agent.post("/api/auth/setup").send({ passphrase: "correct horse battery staple" });
+    await agent
+      .post("/api/auth/setup")
+      .send({ passphrase: "correct horse battery staple" });
 
-    const theme = await agent.put("/api/preferences/theme").send({ theme: "dark" });
+    const theme = await agent
+      .put("/api/preferences/theme")
+      .send({ theme: "dark" });
     expect(theme.status).toBe(200);
     expect(theme.body.theme).toBe("dark");
 
-    const badTheme = await agent.put("/api/preferences/theme").send({ theme: "not-a-theme" });
+    const badTheme = await agent
+      .put("/api/preferences/theme")
+      .send({ theme: "not-a-theme" });
     expect(badTheme.status).toBe(400);
 
-    const tmdb = await agent.put("/api/preferences/tmdb-key").send({ apiKey: "abc123" });
+    const tmdb = await agent
+      .put("/api/preferences/tmdb-key")
+      .send({ apiKey: "abc123" });
     expect(tmdb.status).toBe(200);
     expect(tmdb.body.tmdb_api_key_set).toBe(true);
   });
@@ -137,7 +157,9 @@ describe("createApp", () => {
   it("returns 404 from the favicon proxy for an unknown tile", async () => {
     const app = createApp(dataDir);
     const agent = request.agent(app);
-    await agent.post("/api/auth/setup").send({ passphrase: "correct horse battery staple" });
+    await agent
+      .post("/api/auth/setup")
+      .send({ passphrase: "correct horse battery staple" });
 
     const res = await agent.get("/api/proxy/favicon?tileId=does-not-exist");
     expect(res.status).toBe(404);
@@ -146,7 +168,9 @@ describe("createApp", () => {
   it("returns an empty trending catalog when no TMDB key is set", async () => {
     const app = createApp(dataDir);
     const agent = request.agent(app);
-    await agent.post("/api/auth/setup").send({ passphrase: "correct horse battery staple" });
+    await agent
+      .post("/api/auth/setup")
+      .send({ passphrase: "correct horse battery staple" });
 
     const res = await agent.get("/api/proxy/trending");
     expect(res.status).toBe(200);
@@ -156,7 +180,9 @@ describe("createApp", () => {
   it("returns 404 from the jellyfin proxy for an unknown tile", async () => {
     const app = createApp(dataDir);
     const agent = request.agent(app);
-    await agent.post("/api/auth/setup").send({ passphrase: "correct horse battery staple" });
+    await agent
+      .post("/api/auth/setup")
+      .send({ passphrase: "correct horse battery staple" });
 
     const res = await agent.get("/api/proxy/jellyfin/does-not-exist");
     expect(res.status).toBe(404);
@@ -165,7 +191,9 @@ describe("createApp", () => {
   it("returns null from the jellyfin proxy for a tile with no key set", async () => {
     const app = createApp(dataDir);
     const agent = request.agent(app);
-    await agent.post("/api/auth/setup").send({ passphrase: "correct horse battery staple" });
+    await agent
+      .post("/api/auth/setup")
+      .send({ passphrase: "correct horse battery staple" });
 
     const tiles = await agent.get("/api/tiles");
     const tileId = tiles.body[0].id;

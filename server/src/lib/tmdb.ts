@@ -124,7 +124,8 @@ export async function fetchTrendingCatalog(
   const trimmedKey = apiKey.trim();
   if (!trimmedKey) return catalog;
 
-  const items: Array<{ mediaType: "movie" | "tv"; item: TmdbTrendingResult }> = [];
+  const items: Array<{ mediaType: "movie" | "tv"; item: TmdbTrendingResult }> =
+    [];
   for (const mediaType of ["movie", "tv"] as const) {
     for (const item of await trending(trimmedKey, mediaType)) {
       items.push({ mediaType, item });
@@ -139,7 +140,11 @@ export async function fetchTrendingCatalog(
     providerIds: number[];
   }> = [];
   for (const { mediaType, item } of items) {
-    const providerIds = await fetchWatchProviderIds(trimmedKey, mediaType, item.id);
+    const providerIds = await fetchWatchProviderIds(
+      trimmedKey,
+      mediaType,
+      item.id,
+    );
     itemsWithProviders.push({ item, providerIds });
   }
 
@@ -157,7 +162,10 @@ export async function fetchTrendingCatalog(
       .filter((t): t is string => Boolean(t))
       .slice(0, MAX_TITLES_PER_TILE);
 
-    catalog[tileId] = { titles, backdrop_url: `${TMDB_IMAGE_BASE}${backdropPath}` };
+    catalog[tileId] = {
+      titles,
+      backdrop_url: `${TMDB_IMAGE_BASE}${backdropPath}`,
+    };
   }
   return catalog;
 }

@@ -19,16 +19,14 @@ describe("fetchJellyfinBanner", () => {
   }
 
   it("returns null for an unparseable base URL", async () => {
-    const { fetchJellyfinBanner } = await import(
-      "../../src/lib/jellyfin-banner.js"
-    );
+    const { fetchJellyfinBanner } =
+      await import("../../src/lib/jellyfin-banner.js");
     expect(await fetchJellyfinBanner("not a url", "key")).toBeNull();
   });
 
   it("returns null when no API key is given", async () => {
-    const { fetchJellyfinBanner } = await import(
-      "../../src/lib/jellyfin-banner.js"
-    );
+    const { fetchJellyfinBanner } =
+      await import("../../src/lib/jellyfin-banner.js");
     expect(
       await fetchJellyfinBanner("http://192.168.1.50:8096/web/#/home", "  "),
     ).toBeNull();
@@ -38,9 +36,8 @@ describe("fetchJellyfinBanner", () => {
     const { safeFetch } = await import("../../src/lib/http-fetch.js");
     vi.mocked(safeFetch).mockResolvedValueOnce(jsonResult([]));
 
-    const { fetchJellyfinBanner } = await import(
-      "../../src/lib/jellyfin-banner.js"
-    );
+    const { fetchJellyfinBanner } =
+      await import("../../src/lib/jellyfin-banner.js");
     expect(
       await fetchJellyfinBanner("http://192.168.1.50:8096/web/#/home", "key"),
     ).toBeNull();
@@ -51,12 +48,13 @@ describe("fetchJellyfinBanner", () => {
     vi.mocked(safeFetch)
       .mockResolvedValueOnce(jsonResult([{ Id: "user1" }]))
       .mockResolvedValueOnce(
-        jsonResult([{ Id: "item1", Name: "No Backdrop", BackdropImageTags: [] }]),
+        jsonResult([
+          { Id: "item1", Name: "No Backdrop", BackdropImageTags: [] },
+        ]),
       );
 
-    const { fetchJellyfinBanner } = await import(
-      "../../src/lib/jellyfin-banner.js"
-    );
+    const { fetchJellyfinBanner } =
+      await import("../../src/lib/jellyfin-banner.js");
     expect(
       await fetchJellyfinBanner("http://192.168.1.50:8096/web/#/home", "key"),
     ).toBeNull();
@@ -73,9 +71,8 @@ describe("fetchJellyfinBanner", () => {
         ]),
       );
 
-    const { fetchJellyfinBanner } = await import(
-      "../../src/lib/jellyfin-banner.js"
-    );
+    const { fetchJellyfinBanner } =
+      await import("../../src/lib/jellyfin-banner.js");
     const banner = await fetchJellyfinBanner(
       "http://192.168.1.50:8096/web/#/home",
       "secret-key",
@@ -97,9 +94,8 @@ describe("fetchJellyfinBanner", () => {
     const { safeFetch } = await import("../../src/lib/http-fetch.js");
     vi.mocked(safeFetch).mockRejectedValueOnce(new Error("network error"));
 
-    const { fetchJellyfinBanner } = await import(
-      "../../src/lib/jellyfin-banner.js"
-    );
+    const { fetchJellyfinBanner } =
+      await import("../../src/lib/jellyfin-banner.js");
     expect(
       await fetchJellyfinBanner("http://192.168.1.50:8096/web/#/home", "key"),
     ).toBeNull();

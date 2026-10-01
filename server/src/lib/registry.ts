@@ -21,12 +21,7 @@ export function defaultSeed(): AppTile[] {
   return [
     tile("netflix", "Netflix", "https://www.netflix.com/", "netflix"),
     tile("hulu", "Hulu", "https://www.hulu.com/", "hulu"),
-    tile(
-      "disneyplus",
-      "Disney+",
-      "https://www.disneyplus.com/",
-      "disneyplus",
-    ),
+    tile("disneyplus", "Disney+", "https://www.disneyplus.com/", "disneyplus"),
     tile(
       "paramountplus",
       "Paramount+",

@@ -5,9 +5,8 @@ vi.mock("../../src/lib/http-fetch.js", () => ({
   safeFetch: vi.fn(),
 }));
 
-const { TMDB_PROVIDERS, fetchTrendingCatalog } = await import(
-  "../../src/lib/tmdb.js"
-);
+const { TMDB_PROVIDERS, fetchTrendingCatalog } =
+  await import("../../src/lib/tmdb.js");
 const { safeFetch } = await import("../../src/lib/http-fetch.js");
 
 function jsonResult(body: unknown, status = 200): SafeFetchResult {
@@ -47,7 +46,12 @@ describe("fetchTrendingCatalog", () => {
       if (url.includes("/trending/movie/week")) {
         return jsonResult({
           results: [
-            { id: 1, title: "A Movie", backdrop_path: "/a.jpg", popularity: 10 },
+            {
+              id: 1,
+              title: "A Movie",
+              backdrop_path: "/a.jpg",
+              popularity: 10,
+            },
           ],
         });
       }
@@ -75,7 +79,12 @@ describe("fetchTrendingCatalog", () => {
       if (url.includes("/trending/movie/week")) {
         return jsonResult({
           results: [
-            { id: 1, title: "A Movie", backdrop_path: "/a.jpg", popularity: 10 },
+            {
+              id: 1,
+              title: "A Movie",
+              backdrop_path: "/a.jpg",
+              popularity: 10,
+            },
           ],
         });
       }

@@ -51,9 +51,7 @@ describe("checkResolvedIp", () => {
 describe("checkUrlScheme", () => {
   it("allows http and https", () => {
     expect(checkUrlScheme(new URL("http://example.com/")).allowed).toBe(true);
-    expect(checkUrlScheme(new URL("https://example.com/")).allowed).toBe(
-      true,
-    );
+    expect(checkUrlScheme(new URL("https://example.com/")).allowed).toBe(true);
   });
 
   it("rejects other schemes", () => {

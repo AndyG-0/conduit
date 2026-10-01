@@ -34,9 +34,7 @@ export function createTilesRouter(
 
   router.post("/reorder", (req, res) => {
     try {
-      const ids = Array.isArray(req.body?.ids)
-        ? req.body.ids.map(String)
-        : [];
+      const ids = Array.isArray(req.body?.ids) ? req.body.ids.map(String) : [];
       registry.reorder(ids);
       res.status(204).end();
     } catch (err) {

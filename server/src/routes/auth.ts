@@ -26,7 +26,10 @@ function setSessionCookie(
   });
 }
 
-export function createAuthRouter(dataDir: string, secrets: SecretsFile): Router {
+export function createAuthRouter(
+  dataDir: string,
+  secrets: SecretsFile,
+): Router {
   const router = Router();
 
   router.get("/status", (req, res) => {

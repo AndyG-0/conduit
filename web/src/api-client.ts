@@ -66,9 +66,14 @@ export const authApi = {
   setup: (passphrase: string) =>
     request<AuthStatus>("POST", "/api/auth/setup", { passphrase }),
   login: (passphrase: string) =>
-    request<AuthStatus>("POST", "/api/auth/login", { passphrase }, {
-      suppressUnauthenticatedEvent: true,
-    }),
+    request<AuthStatus>(
+      "POST",
+      "/api/auth/login",
+      { passphrase },
+      {
+        suppressUnauthenticatedEvent: true,
+      },
+    ),
   logout: () => request<void>("POST", "/api/auth/logout"),
 };
 
@@ -83,11 +88,9 @@ export const tilesApi = {
   reorder: (ids: string[]) =>
     request<void>("POST", "/api/tiles/reorder", { ids }),
   setJellyfinKey: (id: string, apiKey: string) =>
-    request<void>(
-      "PUT",
-      `/api/tiles/${encodeURIComponent(id)}/jellyfin-key`,
-      { apiKey },
-    ),
+    request<void>("PUT", `/api/tiles/${encodeURIComponent(id)}/jellyfin-key`, {
+      apiKey,
+    }),
 };
 
 export const preferencesApi = {

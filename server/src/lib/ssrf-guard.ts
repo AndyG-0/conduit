@@ -56,7 +56,8 @@ export interface GuardResult {
 export function checkResolvedIp(ip: string): GuardResult {
   const version = net.isIP(ip);
   if (version === 4) {
-    if (isIPv4Loopback(ip)) return { allowed: false, reason: "loopback address" };
+    if (isIPv4Loopback(ip))
+      return { allowed: false, reason: "loopback address" };
     if (isIPv4LinkLocal(ip))
       return { allowed: false, reason: "link-local address" };
     return { allowed: true };
@@ -64,7 +65,8 @@ export function checkResolvedIp(ip: string): GuardResult {
   if (version === 6) {
     const mapped = extractMappedIPv4(ip);
     if (mapped) return checkResolvedIp(mapped);
-    if (isIPv6Loopback(ip)) return { allowed: false, reason: "loopback address" };
+    if (isIPv6Loopback(ip))
+      return { allowed: false, reason: "loopback address" };
     if (isIPv6LinkLocal(ip))
       return { allowed: false, reason: "link-local address" };
     return { allowed: true };

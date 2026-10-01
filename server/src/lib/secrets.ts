@@ -51,7 +51,8 @@ export function loadSecrets(dataDir: string): SecretsFile {
     return {
       passphraseHash: parsed.passphraseHash,
       passphraseSalt: parsed.passphraseSalt,
-      sessionSigningKey: parsed.sessionSigningKey ?? crypto.randomBytes(32).toString("hex"),
+      sessionSigningKey:
+        parsed.sessionSigningKey ?? crypto.randomBytes(32).toString("hex"),
       tmdbApiKey: parsed.tmdbApiKey,
       jellyfin: parsed.jellyfin ?? {},
     };
