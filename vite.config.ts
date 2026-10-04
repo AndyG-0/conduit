@@ -26,4 +26,12 @@ export default defineConfig(() => ({
       ignored: ["**/src-tauri/**"],
     },
   },
+  // Without this, Vitest's default include glob also picks up
+  // server/test/**, shared/src/**, and web/src/** — those workspaces have
+  // their own tsconfig/module resolution and their own `pnpm test`, and
+  // only pass here by accident (e.g. depending on @conduit/shared already
+  // being built). Scope this project's own `pnpm test` to its own tests.
+  test: {
+    include: ["src/**/*.{test,spec}.ts"],
+  },
 }));

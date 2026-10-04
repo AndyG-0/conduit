@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="/src/styles.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0b0b10" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="192x192"
+      href="/icons/icon-192.png"
+    />
+    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+    <title>Conduit</title>
+    <script type="module" src="/src/main.ts" defer></script>
+  </head>
+
+  <body>
+    <section id="auth" class="auth" hidden></section>
+    <header id="tile-banner" class="tile-banner">
+      <div class="tile-banner-art">
+        <img class="tile-banner-backdrop" alt="" hidden />
+      </div>
+      <div class="tile-banner-scrim"></div>
+      <div class="tile-banner-content">
+        <span class="tile-banner-icon"></span>
+        <span class="tile-banner-name"></span>
+        <p class="tile-banner-trending" hidden></p>
+      </div>
+    </header>
+    <main id="grid" class="grid" hidden></main>
+    <section id="settings" class="settings" hidden></section>
+    <section id="help" class="help" hidden></section>
+    <p id="nav-toast" class="nav-toast" hidden></p>
+  </body>
+</html>

@@ -11,28 +11,14 @@ import {
   KNOWN_ICON_SLUGS,
 } from "./icons";
 import { renderGrid, focusGrid, hideTileBanner } from "./main";
+import { applyTheme, escapeHtml } from "@conduit/shared";
 import { primaryModifierLabel } from "./platform";
-import { applyTheme } from "./theme";
 import { refreshTrendingCatalog } from "./trending";
 import { refreshJellyfinBanner } from "./jellyfin";
 import type { AppTile, AppTileInput, Preferences, ThemeSetting } from "./types";
 
 const grid = document.querySelector<HTMLElement>("#grid")!;
 const panel = document.querySelector<HTMLElement>("#settings")!;
-
-function escapeHtml(s: string): string {
-  return s.replace(
-    /[&<>"']/g,
-    (c) =>
-      ({
-        "&": "&amp;",
-        "<": "&lt;",
-        ">": "&gt;",
-        '"': "&quot;",
-        "'": "&#39;",
-      })[c]!,
-  );
-}
 
 function iconOptions(selected: string | null): string {
   const none = `<option value="" ${selected ? "" : "selected"}>Auto (favicon)</option>`;

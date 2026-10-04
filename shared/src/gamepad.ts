@@ -1,4 +1,4 @@
-import type { Direction } from "./spatial-nav";
+import type { Direction } from "./spatial-nav.js";
 
 /**
  * D-pad and left-stick navigation for the launcher grid, mirroring the

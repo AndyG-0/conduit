@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { isGamepadActive } from "./gamepad";
+import { isGamepadActive } from "@conduit/shared";
 import type { AerialVideo, Preferences } from "./types";
 
 /** How long the app has to sit idle in fullscreen before the screensaver

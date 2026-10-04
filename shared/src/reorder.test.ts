@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { idAfter, moveIdBefore, swapIds } from "./reorder";
+import { idAfter, moveIdBefore, swapIds } from "./reorder.js";
 
 describe("idAfter", () => {
   it("returns the following id", () => {

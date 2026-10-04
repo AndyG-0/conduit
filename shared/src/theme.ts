@@ -1,4 +1,4 @@
-import type { ThemeSetting } from "./types";
+import type { ThemeSetting } from "./types.js";
 
 const CACHE_KEY = "conduit-theme-resolved";
 

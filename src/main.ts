@@ -7,11 +7,18 @@ import {
 } from "./icons";
 import { closeHelp, openHelp } from "./help-view";
 import { closeSettings, openSettings } from "./settings-view";
-import { findNextFocusTarget, type Direction } from "./spatial-nav";
-import { idAfter, moveIdBefore, swapIds } from "./reorder";
-import { startGamepadPolling } from "./gamepad";
+import {
+  applyCachedTheme,
+  applyTheme,
+  escapeHtml,
+  findNextFocusTarget,
+  idAfter,
+  moveIdBefore,
+  startGamepadPolling,
+  swapIds,
+  type Direction,
+} from "@conduit/shared";
 import { initScreensaver } from "./screensaver";
-import { applyCachedTheme, applyTheme } from "./theme";
 import { hasPrimaryModifier } from "./platform";
 import {
   fallbackGradient,
@@ -77,20 +84,6 @@ function tileMarkup(tile: AppTile): string {
       </span>
     </span>
   `;
-}
-
-function escapeHtml(s: string): string {
-  return s.replace(
-    /[&<>"']/g,
-    (c) =>
-      ({
-        "&": "&amp;",
-        "<": "&lt;",
-        ">": "&gt;",
-        '"': "&quot;",
-        "'": "&#39;",
-      })[c]!,
-  );
 }
 
 /**
@@ -183,7 +176,13 @@ function revertTileBannerToFocus(): void {
   }
 }
 
+/** Only wired for pointers that can actually hover (mouse/trackpad) — a
+ * touchscreen tap synthesizes a `mouseenter` with no matching `mouseleave`,
+ * which would otherwise leave the banner stuck visible over the grid until
+ * the next focus change. Touch users still get the banner via
+ * `updateTileBanner`'s focus-driven callers. */
 function attachBannerHoverListeners(button: HTMLButtonElement): void {
+  if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
   button.addEventListener("mouseenter", () => updateTileBanner(button));
   button.addEventListener("mouseleave", revertTileBannerToFocus);
 }
