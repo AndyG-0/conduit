@@ -6,7 +6,7 @@ All notable changes to Conduit are documented here. Format follows
 
 ## [Unreleased]
 
-### Added
+## [0.2.0] - 2026-10-09
 
 - Windows support (WebView2). Each release now also ships an unsigned
   Windows `.msi` and NSIS `-setup.exe` alongside the macOS `.dmg`/`.app.zip`.
@@ -18,7 +18,6 @@ All notable changes to Conduit are documented here. Format follows
 - Multi-arch (amd64/arm64) Docker images for the self-hosted PWA, published
   to `ghcr.io/andyg-0/conduit` on each tagged release.
 
-### Changed
 
 - `docker-compose.yml` now pulls the published server image by default
   (`docker compose up -d --build` still builds from source). Caddy's
@@ -31,7 +30,6 @@ All notable changes to Conduit are documented here. Format follows
 - Settings keeps its header and Back button pinned while scrolling, and
   keeps its scroll position after saving.
 
-### Fixed
 
 - ESPN playback on Windows (Chrome UA and Client Hints for ESPN, whose
   player fails under Edge's PlayReady path).
@@ -45,7 +43,6 @@ All notable changes to Conduit are documented here. Format follows
   popups didn't close. Those pages are now granted exactly those two
   commands and nothing else.
 
-### Security
 
 - Debug logging to a temp file is compiled out of release builds.
 
