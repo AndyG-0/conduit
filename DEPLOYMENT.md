@@ -22,16 +22,22 @@ before installation works; see below.
    `/etc/hosts` entry, a router-level DNS override, or an mDNS name
    (`conduit.local` if your router/devices support `.local` resolution).
    Edit `Caddyfile` and replace `conduit.local` with it.
-2. **Bring up the stack:**
+2. **(Optional) Pick non-default ports.** If 80/443 are already taken by
+   another service on this machine, copy `.env.example` to `.env` and set
+   `HTTP_PORT`/`HTTPS_PORT` there.
+3. **Bring up the stack:**
    ```sh
-   docker compose up -d --build
+   docker compose up -d
    ```
-   This builds the server image (compiling `shared/`, `web/`, and `server/`
-   in one multi-stage build — see `Dockerfile`) and starts it alongside
-   Caddy. Tile/session state persists in the `conduit-data` volume; Caddy's
-   certificates persist in `caddy-data`/`caddy-config` — none of that is lost
-   across a `docker compose down`/`up` cycle (only `-v` clears it).
-3. **Trust Caddy's local CA on each client device that will use Conduit.**
+   This pulls the published server image (`ghcr.io/andyg-0/conduit`, built
+   from `shared/`, `web/`, and `server/` — see `Dockerfile`) and starts it
+   alongside Caddy. To build from source instead (e.g. for local
+   development, or before that image has been published), use
+   `docker compose up -d --build`. Tile/session state persists in the
+   `conduit-data` volume; Caddy's certificates persist in
+   `caddy-data`/`caddy-config` — none of that is lost across a
+   `docker compose down`/`up` cycle (only `-v` clears it).
+4. **Trust Caddy's local CA on each client device that will use Conduit.**
    Caddy writes its root certificate to the `caddy-data` volume the first
    time it runs. Copy it out and install it as a trusted root:
    ```sh
@@ -51,12 +57,12 @@ before installation works; see below.
    This is the one manual step per device — after it's done, `https://` to
    your chosen hostname will show as secure, and the browser will offer to
    install the PWA.
-4. **Open `https://<your-hostname>/` and set a passphrase.** The first visit
+5. **Open `https://<your-hostname>/` and set a passphrase.** The first visit
    shows a setup screen instead of a login screen — see
    `GET /api/auth/status`'s `needsSetup` flag. This passphrase gates the
    whole app (there are no per-user accounts); anyone on your LAN with it can
    use and edit the tile grid.
-5. **Install it.** On mobile, "Add to Home Screen" from the browser's share
+6. **Install it.** On mobile, "Add to Home Screen" from the browser's share
    sheet; on desktop Chrome/Edge, the install icon in the address bar. It
    launches fullscreen (or standalone, on platforms that don't support
    `display: "fullscreen"`).
@@ -65,13 +71,36 @@ before installation works; see below.
 
 ```sh
 git pull
-docker compose up -d --build
+docker compose pull
+docker compose up -d
 ```
 
+(`docker compose pull` re-fetches the `:latest` image tag — plain `up -d`
+won't do that if it's already present locally.) If you're building from
+source instead, use `docker compose up -d --build` as before.
+
 Tile/session/secrets data lives in the `conduit-data` volume, independent of
-the image — rebuilding doesn't touch it.
+the image — rebuilding or pulling a new image doesn't touch it.
 
 ## Configuration
+
+### Compose-level (host ports, image version)
+
+Set these via a `.env` file next to `docker-compose.yml` (see
+`.env.example`):
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `HTTP_PORT` | `80` | Host port forwarded to Caddy's HTTP listener |
+| `HTTPS_PORT` | `443` | Host port forwarded to Caddy's HTTPS listener (TCP and UDP/QUIC) |
+| `CONDUIT_VERSION` | `latest` | Image tag to pull for the `server` service, e.g. `0.1.2` to pin a release |
+
+Images are published to `ghcr.io/andyg-0/conduit` on each tagged release,
+for `linux/amd64` and `linux/arm64`. The package needs to be set to public
+in GitHub's package settings before `docker compose pull` will work
+without authenticating to GHCR.
+
+### Server process
 
 Environment variables the server reads (set them via a `.env` file next to
 `docker-compose.yml`, or directly in that file):
@@ -96,5 +125,5 @@ deployment:
   keys) is **not encrypted at rest** — anyone with filesystem access to the
   `conduit-data` volume can read it, same posture as `registry.json` already
   had. Protect the host, not just the app.
-- Don't expose ports 80/443 on this stack directly to the public internet
+- Don't expose this stack's Caddy ports directly to the public internet
   without understanding what that changes about the threat model above.
