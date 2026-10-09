@@ -1,5 +1,6 @@
 services:
   server:
+    image: ghcr.io/andyg-0/conduit:${CONDUIT_VERSION:-latest}
     build: .
     restart: unless-stopped
     volumes:
@@ -11,9 +12,9 @@ services:
     image: caddy:2-alpine
     restart: unless-stopped
     ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp"
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+      - "${HTTPS_PORT:-443}:443/udp"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data

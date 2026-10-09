@@ -15,8 +15,15 @@ All notable changes to Conduit are documented here. Format follows
   because Windows reserves Ctrl+Shift+Escape for Task Manager. Help lists
   each platform's own shortcuts.
 - Full-screen toggle button in Settings.
+- Multi-arch (amd64/arm64) Docker images for the self-hosted PWA, published
+  to `ghcr.io/andyg-0/conduit` on each tagged release.
 
 ### Changed
+
+- `docker-compose.yml` now pulls the published server image by default
+  (`docker compose up -d --build` still builds from source). Caddy's
+  host-published ports are configurable via `HTTP_PORT`/`HTTPS_PORT` env
+  vars (see `.env.example`), defaulting to 80/443 as before.
 
 - The ESPN tile opens ESPN's watch page (`espn.com/watch/`). Existing
   installs still on the old default are migrated.

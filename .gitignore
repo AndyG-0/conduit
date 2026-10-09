@@ -17,6 +17,9 @@ build/
 # Server runtime state (registry.json, secrets.json) — never commit these
 /server/data/
 
+# Local docker-compose overrides (ports, image tag) — see .env.example
+/.env
+
 # Editor
 .vscode/*
 !.vscode/extensions.json
