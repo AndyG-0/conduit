@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { Registry, defaultSeed } from "../../src/lib/registry.js";
+import { Registry, defaultSeed, migrateSeedUrls } from "../../src/lib/registry.js";
 import type { SecretsFile } from "../../src/lib/secrets.js";
 import type { AppTileInput } from "@conduit/shared";
 
@@ -43,6 +43,34 @@ describe("defaultSeed", () => {
     const seed = defaultSeed();
     const back = JSON.parse(JSON.stringify(seed));
     expect(back).toEqual(seed);
+  });
+});
+
+describe("migrateSeedUrls", () => {
+  it("updates a tile still on the old ESPN default", () => {
+    const tiles = defaultSeed();
+    const espn = tiles.find((t) => t.id === "espn")!;
+    espn.base_url = "https://www.espn.com/";
+    expect(migrateSeedUrls(tiles)).toBe(true);
+    expect(tiles.find((t) => t.id === "espn")!.base_url).toBe(
+      defaultSeed().find((t) => t.id === "espn")!.base_url,
+    );
+  });
+
+  it("leaves a user-edited ESPN URL alone", () => {
+    const tiles = defaultSeed();
+    const espn = tiles.find((t) => t.id === "espn")!;
+    espn.base_url = "https://www.espn.com/nfl/";
+    expect(migrateSeedUrls(tiles)).toBe(false);
+    expect(tiles.find((t) => t.id === "espn")!.base_url).toBe(
+      "https://www.espn.com/nfl/",
+    );
+  });
+
+  it("is a no-op on a fresh seed", () => {
+    const tiles = defaultSeed();
+    expect(migrateSeedUrls(tiles)).toBe(false);
+    expect(tiles).toEqual(defaultSeed());
   });
 });
 
@@ -125,6 +153,26 @@ describe("Registry", () => {
     const registry = loadEmpty(emptySecrets());
     const ids = seedThree(registry);
     expect(() => registry.reorder([ids[0]!, ids[0]!, ids[1]!])).toThrow();
+  });
+
+  it("migrates a tile still on the old ESPN default on load, and persists it", () => {
+    fs.mkdirSync(dataDir, { recursive: true });
+    const seed = defaultSeed();
+    const espn = seed.find((t) => t.id === "espn")!;
+    espn.base_url = "https://www.espn.com/";
+    fs.writeFileSync(
+      path.join(dataDir, "registry.json"),
+      JSON.stringify(seed),
+    );
+
+    const registry = Registry.load(dataDir, emptySecrets());
+    const expected = defaultSeed().find((t) => t.id === "espn")!.base_url;
+    expect(registry.get("espn")?.base_url).toBe(expected);
+
+    const onDisk = JSON.parse(
+      fs.readFileSync(path.join(dataDir, "registry.json"), "utf8"),
+    ) as { id: string; base_url: string }[];
+    expect(onDisk.find((t) => t.id === "espn")?.base_url).toBe(expected);
   });
 
   it("reflects jellyfin_api_key_set from the secrets file", () => {

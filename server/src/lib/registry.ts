@@ -4,6 +4,10 @@ import type { AppTile, AppTileInput, AppTileView } from "@conduit/shared";
 import { slugify } from "@conduit/shared";
 import type { SecretsFile } from "./secrets.js";
 
+/// ESPN's streaming landing page — the bare `www.espn.com` home page is the
+/// sports-news site, not the watch experience a TV launcher tile should open.
+const ESPN_BASE_URL = "https://espn.com/watch/";
+
 /**
  * The curated set of streaming services shipped by default. Ported from
  * `default_seed()` in `src-tauri/src/app_config.rs` — same ids/names/URLs/
@@ -30,7 +34,7 @@ export function defaultSeed(): AppTile[] {
     ),
     tile("peacock", "Peacock", "https://www.peacocktv.com/", "peacock"),
     tile("tubi", "Tubi", "https://tubitv.com/", "tubi"),
-    tile("espn", "ESPN", "https://www.espn.com/", "espn"),
+    tile("espn", "ESPN", ESPN_BASE_URL, "espn"),
     tile("youtubetv", "YouTube TV", "https://tv.youtube.com/", "youtubetv"),
     tile("slingtv", "Sling TV", "https://www.sling.com/", "slingtv"),
     tile("hbomax", "HBO Max", "https://www.hbomax.com/", "hbomax"),
@@ -42,6 +46,41 @@ export function defaultSeed(): AppTile[] {
     ),
     tile("appletv", "Apple TV+", "https://tv.apple.com/", "appletv"),
   ];
+}
+
+/**
+ * Seeded base URLs that were later corrected in `defaultSeed`, as
+ * `[tile id, old base_url]`. `registry.json` persists the seed on first run,
+ * so a corrected default never reaches an existing install on its own;
+ * `migrateSeedUrls` rewrites a tile still on its old default to the current
+ * one. Only an exact match is rewritten — a URL the user edited themselves
+ * is left alone. Ported from `CORRECTED_SEED_URLS` in
+ * `src-tauri/src/app_config.rs`.
+ */
+const CORRECTED_SEED_URLS: [id: string, oldUrl: string][] = [
+  ["espn", "https://www.espn.com/"],
+];
+
+/**
+ * Applies `CORRECTED_SEED_URLS` in place. Returns `true` if any tile
+ * changed (i.e. `registry.json` needs re-saving). Ported from
+ * `migrate_seed_urls` in `src-tauri/src/app_config.rs`.
+ */
+export function migrateSeedUrls(tiles: AppTile[]): boolean {
+  const seed = defaultSeed();
+  let changed = false;
+  for (const tile of tiles) {
+    const corrected = CORRECTED_SEED_URLS.some(
+      ([id, oldUrl]) => tile.id === id && tile.base_url === oldUrl,
+    );
+    if (!corrected) continue;
+    const current = seed.find((t) => t.id === tile.id);
+    if (current) {
+      tile.base_url = current.base_url;
+      changed = true;
+    }
+  }
+  return changed;
 }
 
 function validateInput(input: AppTileInput): void {
@@ -84,7 +123,11 @@ export class Registry {
     try {
       const contents = fs.readFileSync(filePath, "utf8");
       const tiles = JSON.parse(contents) as AppTile[];
-      return new Registry(dataDir, secrets, tiles);
+      const registry = new Registry(dataDir, secrets, tiles);
+      if (migrateSeedUrls(tiles)) {
+        registry.save();
+      }
+      return registry;
     } catch {
       const seed = defaultSeed();
       const registry = new Registry(dataDir, secrets, seed);
