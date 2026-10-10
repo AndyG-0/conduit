@@ -2,7 +2,11 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { Registry, defaultSeed, migrateSeedUrls } from "../../src/lib/registry.js";
+import {
+  Registry,
+  defaultSeed,
+  migrateSeedUrls,
+} from "../../src/lib/registry.js";
 import type { SecretsFile } from "../../src/lib/secrets.js";
 import type { AppTileInput } from "@conduit/shared";
 
@@ -160,10 +164,7 @@ describe("Registry", () => {
     const seed = defaultSeed();
     const espn = seed.find((t) => t.id === "espn")!;
     espn.base_url = "https://www.espn.com/";
-    fs.writeFileSync(
-      path.join(dataDir, "registry.json"),
-      JSON.stringify(seed),
-    );
+    fs.writeFileSync(path.join(dataDir, "registry.json"), JSON.stringify(seed));
 
     const registry = Registry.load(dataDir, emptySecrets());
     const expected = defaultSeed().find((t) => t.id === "espn")!.base_url;
