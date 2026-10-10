@@ -148,6 +148,14 @@ jobs:
             type=raw,value=latest
 
       - uses: docker/build-push-action@v6
+        env:
+          # Without this, build-push-action uploads a GH Actions artifact
+          # named "<owner>~<repo>~<random>.dockerbuild" for its build
+          # summary. The `publish` job's download-artifact step grabs every
+          # artifact in the run, and that one reliably fails to extract,
+          # failing `publish` even though the artifacts it actually needs
+          # downloaded fine. See docker/build-push-action#1255.
+          DOCKER_BUILD_SUMMARY: false
         with:
           context: .
           platforms: linux/amd64,linux/arm64
