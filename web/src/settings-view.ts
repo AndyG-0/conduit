@@ -315,7 +315,9 @@ async function renderSettings(editingId: string | null = null): Promise<void> {
     })();
   });
 
-  panel.querySelector<HTMLInputElement>("input[name=name]")?.focus();
+  panel
+    .querySelector<HTMLInputElement>("input[name=name]")
+    ?.focus({ preventScroll: true });
 }
 
 export function openSettings(): void {
