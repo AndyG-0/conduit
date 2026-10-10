@@ -6,6 +6,8 @@ All notable changes to Conduit are documented here. Format follows
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-10-10
+
 - The self-hosted PWA's ESPN tile now also opens ESPN's watch page
   (`espn.com/watch/`) instead of the marketing home page, matching the
   desktop app. Existing installs still on the old default are migrated.
