@@ -381,10 +381,12 @@ body {
 .settings {
   height: 100vh;
   overflow-y: auto;
-  /* Matches `.grid`'s top padding so the hero banner can never cover the
-     top of this panel — see the comment on `.grid` above. */
-  padding: var(--hero-banner-space) 4vw 4vh;
-  padding: var(--hero-banner-space-dvh) 4vw 4vh;
+  /* Unlike `.grid`, this is a plain block container, not centered content —
+     reserving the hero banner's height here would be permanent dead space
+     above the header on every open, not just padding around centered
+     content. The banner is hidden before this panel renders (`openSettings`),
+     so only its sub-200ms fade-out can briefly overlap the top. */
+  padding: 4vh 4vw;
 }
 
 .settings-header {
@@ -577,10 +579,12 @@ body {
 .help {
   height: 100vh;
   overflow-y: auto;
-  /* Matches `.grid`'s top padding so the hero banner can never cover the
-     top of this panel — see the comment on `.grid` above. */
-  padding: var(--hero-banner-space) 4vw 4vh;
-  padding: var(--hero-banner-space-dvh) 4vw 4vh;
+  /* Unlike `.grid`, this is a plain block container, not centered content —
+     reserving the hero banner's height here would be permanent dead space
+     above the header on every open, not just padding around centered
+     content. The banner is hidden before this panel renders (`openHelp`),
+     so only its sub-200ms fade-out can briefly overlap the top. */
+  padding: 4vh 4vw;
 }
 
 .help-content {
